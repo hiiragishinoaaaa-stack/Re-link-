@@ -3,13 +3,16 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 
 const BUCKET = 'link-images'
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
-const ALLOWED_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
-])
+
+// MIME type → safe ASCII extension. Extension is derived from the MIME type,
+// never from file.name, so Japanese/emoji filenames can't reach storage headers.
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+}
 
 export async function POST(req: NextRequest) {
   let formData: FormData
@@ -24,7 +27,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No file provided.' }, { status: 400 })
   }
 
-  if (!ALLOWED_TYPES.has(file.type)) {
+  const ext = MIME_TO_EXT[file.type]
+  if (!ext) {
     return NextResponse.json(
       { error: 'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed.' },
       { status: 400 },
@@ -35,8 +39,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File size must be under 5 MB.' }, { status: 400 })
   }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  // Use UUID + MIME-derived extension. Never use file.name — it may contain
+  // non-ASCII characters that cause a ByteString error in HTTP headers.
+  const filename = `${crypto.randomUUID()}.${ext}`
   const buffer = await file.arrayBuffer()
 
   const supabase = getSupabaseAdmin()
