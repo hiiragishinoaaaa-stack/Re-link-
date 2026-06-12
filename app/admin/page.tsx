@@ -11,7 +11,7 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const baseUrl = 'https://re-link-ten.vercel.app'
 
   async function fetchLinks() {
     setFetchError('')

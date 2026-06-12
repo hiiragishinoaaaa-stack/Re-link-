@@ -28,10 +28,7 @@ export default function HomePage() {
   const [copiedDirect, setCopiedDirect] = useState(false)
   const [copiedLanding, setCopiedLanding] = useState(false)
 
-  const baseUrl =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_BASE_URL ?? ''
+  const baseUrl = 'https://re-link-ten.vercel.app'
 
   function set(key: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
