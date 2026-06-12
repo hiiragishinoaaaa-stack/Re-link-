@@ -2,6 +2,18 @@
 
 import { useRef, useState } from 'react'
 import { useLanguage } from '@/lib/language-context'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
+
+const BUCKET = 'link-images'
+const MAX_BYTES = 5 * 1024 * 1024
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+}
 
 type Props = {
   value: string
@@ -17,21 +29,39 @@ export default function ImageUpload({ value, onChange, placeholder }: Props) {
 
   async function handleFile(file: File) {
     setUploadError('')
+
+    const ext = MIME_TO_EXT[file.type]
+    if (!ext) {
+      setUploadError(t.uploadError)
+      return
+    }
+    if (file.size > MAX_BYTES) {
+      setUploadError(t.uploadHint)
+      return
+    }
+
     setUploading(true)
     try {
-      // file.slice() returns a plain Blob — Blob has no .name property, so the
-      // browser cannot inject the original (possibly non-ASCII) filename into the
-      // multipart Content-Disposition header, which would throw a ByteString error.
-      const blob = file.slice(0, file.size, file.type)
-      const form = new FormData()
-      form.append('file', blob, 'upload')
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json()
-      if (!res.ok) {
-        setUploadError(data.error ?? t.uploadError)
+      // Path is a pure-ASCII UUID — file.name is never read or used anywhere.
+      // The Supabase SDK uploads the file as a binary body (not multipart),
+      // so there is no Content-Disposition header and no ByteString risk.
+      const path = `${crypto.randomUUID()}.${ext}`
+      const supabase = getSupabaseBrowser()
+
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { contentType: file.type })
+
+      if (error) {
+        setUploadError(error.message)
         return
       }
-      onChange(data.url)
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(BUCKET)
+        .getPublicUrl(path)
+
+      onChange(publicUrl)
     } catch {
       setUploadError(t.uploadError)
     } finally {
