@@ -90,6 +90,12 @@ export const translations = {
     buttonLoading: '読み込み中…',
     buttonDefault: '続ける',
 
+    // Image upload
+    uploadImage: 'アップロード',
+    uploading: 'アップロード中…',
+    uploadError: 'アップロードに失敗しました。',
+    uploadHint: 'JPEG・PNG・GIF・WebP・SVG　最大 5 MB',
+
     // Language switcher
     langJa: '日本語',
     langEn: 'English',
@@ -183,6 +189,12 @@ export const translations = {
     // Landing page chrome
     buttonLoading: 'Loading…',
     buttonDefault: 'Continue',
+
+    // Image upload
+    uploadImage: 'Upload image',
+    uploading: 'Uploading…',
+    uploadError: 'Upload failed.',
+    uploadHint: 'JPEG, PNG, GIF, WebP or SVG — max 5 MB',
 
     // Language switcher
     langJa: '日本語',

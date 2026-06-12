@@ -25,3 +25,12 @@ export function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 }
+
+// Server-side admin client. Uses the service role key when available so it
+// bypasses RLS — use only in API routes, never in client components.
+export function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}

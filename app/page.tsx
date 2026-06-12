@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/lib/language-context'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import ImageUpload from '@/components/ImageUpload'
 
 type CreatedLink = {
   slug: string
@@ -179,7 +180,11 @@ export default function HomePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t.ogImageUrl}</label>
-            <input type="url" placeholder="https://example.com/og-image.jpg" value={form.og_image} onChange={set('og_image')} className={inputCls} />
+            <ImageUpload
+              value={form.og_image}
+              onChange={url => setForm(f => ({ ...f, og_image: url }))}
+              placeholder="https://example.com/og-image.jpg"
+            />
           </div>
 
           {/* Landing page section */}
@@ -201,7 +206,11 @@ export default function HomePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t.landingImageUrl}</label>
-            <input type="url" placeholder="https://example.com/banner.jpg" value={form.landing_image} onChange={set('landing_image')} className={inputCls} />
+            <ImageUpload
+              value={form.landing_image}
+              onChange={url => setForm(f => ({ ...f, landing_image: url }))}
+              placeholder="https://example.com/banner.jpg"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t.buttonText}</label>
