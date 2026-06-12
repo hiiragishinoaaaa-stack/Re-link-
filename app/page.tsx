@@ -19,6 +19,7 @@ export default function HomePage() {
   const [created, setCreated] = useState<CreatedLink | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const baseUrl =
     typeof window !== 'undefined'
@@ -29,27 +30,41 @@ export default function HomePage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    setCopied(false)
 
-    const res = await fetch('/api/links', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
+    try {
+      const res = await fetch('/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
 
-    const data = await res.json()
-    setLoading(false)
+      const data = await res.json()
 
-    if (!res.ok) {
-      setError(data.error ?? 'Something went wrong.')
-      return
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong.')
+        return
+      }
+
+      setCreated(data)
+      setForm({ slug: '', destination_url: '', og_title: '', og_description: '', og_image: '' })
+    } catch {
+      setError('Network error — please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    setCreated(data)
-    setForm({ slug: '', destination_url: '', og_title: '', og_description: '', og_image: '' })
   }
 
-  function copyLink() {
-    if (created) navigator.clipboard.writeText(`${baseUrl}/${created.slug}`)
+  async function copyLink() {
+    if (!created) return
+    try {
+      await navigator.clipboard.writeText(`${baseUrl}/${created.slug}`)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard API unavailable (non-HTTPS, Firefox without permission, etc.)
+      // Silently ignore — the URL is visible in the code element for manual copy
+    }
   }
 
   return (
@@ -66,14 +81,14 @@ export default function HomePage() {
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4">
             <p className="text-sm font-medium text-green-800 mb-2">Link created!</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-white border border-green-200 px-3 py-2 text-sm text-green-900 truncate">
+              <code className="flex-1 rounded bg-white border border-green-200 px-3 py-2 text-sm text-green-900 truncate min-w-0">
                 {baseUrl}/{created.slug}
               </code>
               <button
                 onClick={copyLink}
-                className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+                className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors min-w-[60px]"
               >
-                Copy
+                {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>
@@ -86,7 +101,7 @@ export default function HomePage() {
               Short slug <span className="text-red-500">*</span>
             </label>
             <div className="flex rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
-              <span className="bg-gray-50 border-r border-gray-300 px-3 py-2 text-sm text-gray-500 select-none">
+              <span className="bg-gray-50 border-r border-gray-300 px-3 py-2 text-sm text-gray-500 select-none whitespace-nowrap">
                 {baseUrl}/
               </span>
               <input
@@ -94,8 +109,10 @@ export default function HomePage() {
                 required
                 placeholder="my-link"
                 value={form.slug}
-                onChange={e => setForm(f => ({ ...f, slug: e.target.value.replace(/[^a-zA-Z0-9-_]/g, '') }))}
-                className="flex-1 px-3 py-2 text-sm outline-none bg-white"
+                onChange={e =>
+                  setForm(f => ({ ...f, slug: e.target.value.replace(/[^a-zA-Z0-9-_]/g, '') }))
+                }
+                className="flex-1 min-w-0 px-3 py-2 text-sm outline-none bg-white"
               />
             </div>
             <p className="mt-1 text-xs text-gray-400">Letters, numbers, hyphens and underscores only.</p>
@@ -116,7 +133,9 @@ export default function HomePage() {
           </div>
 
           <hr className="border-gray-100" />
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">OG Preview (optional)</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+            OG Preview (optional)
+          </p>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">OG Title</label>
@@ -152,7 +171,9 @@ export default function HomePage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</p>
+            <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              {error}
+            </p>
           )}
 
           <button

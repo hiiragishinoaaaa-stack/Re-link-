@@ -18,7 +18,7 @@ A minimal URL shortener with custom OG previews. Built with Next.js + Supabase.
 ### 1. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** and run the contents of `supabase/schema.sql`
+2. Go to **SQL Editor** and run the contents of `supabase/schema.sql` — this creates the `links` table **and** the `increment_click_count` SQL function used for atomic click tracking
 3. Copy your project URL and anon key from **Settings → API**
 
 ### 2. Environment variables
