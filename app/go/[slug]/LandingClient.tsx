@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useLanguage } from '@/lib/language-context'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 type Props = {
   title: string
@@ -13,6 +15,7 @@ type Props = {
 }
 
 export default function LandingClient({ title, description, image, buttonText, action }: Props) {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
 
   async function handleClick() {
@@ -29,6 +32,11 @@ export default function LandingClient({ title, description, image, buttonText, a
 
   return (
     <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
+      {/* Language switcher — fixed top-left */}
+      <div className="fixed top-4 left-4 z-50">
+        <LanguageSwitcher />
+      </div>
+
       <div className="w-full max-w-sm flex flex-col items-center">
 
         {/* Image */}
@@ -94,10 +102,10 @@ export default function LandingClient({ title, description, image, buttonText, a
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              Loading…
+              {t.buttonLoading}
             </>
           ) : (
-            buttonText || 'Continue'
+            buttonText || t.buttonDefault
           )}
         </button>
       </div>

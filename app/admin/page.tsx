@@ -3,48 +3,56 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { Link as LinkRow } from '@/lib/supabase'
+import { useLanguage } from '@/lib/language-context'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
+
+const BASE_URL = 'https://re-link-ten.vercel.app'
 
 export default function AdminPage() {
+  const { t } = useLanguage()
   const [links, setLinks] = useState<LinkRow[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
 
-  const baseUrl = 'https://re-link-ten.vercel.app'
-
   async function fetchLinks() {
     setFetchError('')
     try {
       const res = await fetch('/api/links')
-      if (!res.ok) throw new Error(`Server error: ${res.status}`)
+      if (!res.ok) {
+        setFetchError(t.serverError + res.status)
+        return
+      }
       const data: LinkRow[] = await res.json()
       setLinks(data)
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load links.')
+    } catch {
+      setFetchError(t.failedToLoad)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchLinks() }, [])
+  useEffect(() => { fetchLinks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this link?')) return
+    if (!confirm(t.deleteConfirm)) return
     setDeletingId(id)
     setDeleteError('')
     try {
       const res = await fetch(`/api/links/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+      if (!res.ok) {
+        setDeleteError(t.deleteFailed + res.status)
+        return
+      }
       setLinks(prev => prev.filter(l => l.id !== id))
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete link.')
+    } catch {
+      setDeleteError(t.failedToDelete)
     } finally {
       setDeletingId(null)
     }
   }
 
-  // Derive sorted copies without mutating state
   const byClicks = [...links].sort((a, b) => b.click_count - a.click_count)
   const byDate = [...links].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -54,27 +62,32 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-10">
+      {/* Language switcher — fixed top-left */}
+      <div className="fixed top-4 left-4 z-50">
+        <LanguageSwitcher />
+      </div>
+
       <div className="mx-auto max-w-5xl">
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage your short links</p>
+            <h1 className="text-2xl font-bold">{t.adminTitle}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t.adminSubtitle}</p>
           </div>
           <Link
             href="/"
             className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
           >
-            + New link
+            {t.newLink}
           </Link>
         </div>
 
         {/* Stats */}
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <StatCard label="Total links" value={links.length} />
-          <StatCard label="Total clicks" value={totalClicks} />
+          <StatCard label={t.totalLinks} value={links.length} />
+          <StatCard label={t.totalClicks} value={totalClicks} />
           <StatCard
-            label="Top link"
+            label={t.topLink}
             value={topSlug ? `/${topSlug}` : '—'}
             mono
           />
@@ -84,7 +97,7 @@ export default function AdminPage() {
         {fetchError && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-2">
             <span>{fetchError}</span>
-            <button onClick={fetchLinks} className="underline shrink-0">Retry</button>
+            <button onClick={fetchLinks} className="underline shrink-0">{t.retry}</button>
           </div>
         )}
         {deleteError && (
@@ -95,12 +108,12 @@ export default function AdminPage() {
 
         {/* Table */}
         {loading ? (
-          <p className="text-center text-gray-400 py-16">Loading…</p>
+          <p className="text-center text-gray-400 py-16">{t.loading}</p>
         ) : links.length === 0 && !fetchError ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
-            <p className="text-gray-400 mb-3">No links yet.</p>
+            <p className="text-gray-400 mb-3">{t.noLinks}</p>
             <Link href="/" className="text-sm text-indigo-600 underline">
-              Create your first link →
+              {t.createFirstLink}
             </Link>
           </div>
         ) : links.length > 0 ? (
@@ -109,12 +122,12 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">Short link</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600">Destination</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">OG title</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">Landing page</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600">Clicks</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">Created</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colShortLink}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600">{t.colDestination}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colOgTitle}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colLanding}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600">{t.colClicks}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">{t.colCreated}</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -123,7 +136,7 @@ export default function AdminPage() {
                     <tr key={link.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <a
-                          href={`${baseUrl}/${link.slug}`}
+                          href={`${BASE_URL}/${link.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="font-mono text-indigo-600 hover:underline"
@@ -148,7 +161,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         {link.landing_title ? (
                           <a
-                            href={`${baseUrl}/go/${link.slug}`}
+                            href={`${BASE_URL}/go/${link.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
@@ -173,7 +186,7 @@ export default function AdminPage() {
                           disabled={deletingId === link.id}
                           className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
                         >
-                          {deletingId === link.id ? '…' : 'Delete'}
+                          {deletingId === link.id ? t.deleting : t.delete}
                         </button>
                       </td>
                     </tr>

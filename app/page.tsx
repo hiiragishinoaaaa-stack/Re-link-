@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useLanguage } from '@/lib/language-context'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 type CreatedLink = {
   slug: string
@@ -20,15 +22,16 @@ const EMPTY_FORM = {
   button_text: '',
 }
 
+const BASE_URL = 'https://re-link-ten.vercel.app'
+
 export default function HomePage() {
+  const { t } = useLanguage()
   const [form, setForm] = useState(EMPTY_FORM)
   const [created, setCreated] = useState<CreatedLink | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [copiedDirect, setCopiedDirect] = useState(false)
   const [copiedLanding, setCopiedLanding] = useState(false)
-
-  const baseUrl = 'https://re-link-ten.vercel.app'
 
   function set(key: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -50,13 +53,13 @@ export default function HomePage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? 'Something went wrong.')
+        setError(data.error ?? t.somethingWrong)
         return
       }
       setCreated({ slug: data.slug, landing_title: data.landing_title ?? null })
       setForm(EMPTY_FORM)
     } catch {
-      setError('Network error — please try again.')
+      setError(t.networkError)
     } finally {
       setLoading(false)
     }
@@ -72,8 +75,8 @@ export default function HomePage() {
     }
   }
 
-  const directUrl = created ? `${baseUrl}/${created.slug}` : ''
-  const landingUrl = created ? `${baseUrl}/go/${created.slug}` : ''
+  const directUrl = created ? `${BASE_URL}/${created.slug}` : ''
+  const landingUrl = created ? `${BASE_URL}/go/${created.slug}` : ''
   const hasLanding = !!created?.landing_title
 
   const inputCls =
@@ -81,30 +84,39 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+      {/* Language switcher — fixed top-left */}
+      <div className="fixed top-4 left-4 z-50">
+        <LanguageSwitcher />
+      </div>
+
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Re:link</h1>
-          <p className="mt-1 text-gray-500 text-sm">Short links with custom OG previews and landing pages</p>
+          <p className="mt-1 text-gray-500 text-sm">{t.tagline}</p>
         </div>
 
         {/* Success banner */}
         {created && (
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 space-y-3">
-            <p className="text-sm font-medium text-green-800">Link created!</p>
+            <p className="text-sm font-medium text-green-800">{t.linkCreated}</p>
 
             <UrlRow
-              label="Direct redirect"
+              label={t.directRedirect}
               url={directUrl}
               copied={copiedDirect}
+              copyLabel={t.copy}
+              copiedLabel={t.copied}
               onCopy={() => copy(directUrl, setCopiedDirect)}
             />
 
             {hasLanding && (
               <UrlRow
-                label="Landing page"
+                label={t.landingPageUrl}
                 url={landingUrl}
                 copied={copiedLanding}
+                copyLabel={t.copy}
+                copiedLabel={t.copied}
                 onCopy={() => copy(landingUrl, setCopiedLanding)}
               />
             )}
@@ -117,16 +129,16 @@ export default function HomePage() {
           {/* Slug */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Short slug <span className="text-red-500">*</span>
+              {t.shortSlug} <span className="text-red-500">*</span>
             </label>
             <div className="flex rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
               <span className="bg-gray-50 border-r border-gray-300 px-3 py-2 text-sm text-gray-500 select-none whitespace-nowrap">
-                {baseUrl}/
+                {BASE_URL}/
               </span>
               <input
                 type="text"
                 required
-                placeholder="my-link"
+                placeholder={t.slugPlaceholder}
                 value={form.slug}
                 onChange={e =>
                   setForm(f => ({ ...f, slug: e.target.value.replace(/[^a-zA-Z0-9-_]/g, '') }))
@@ -134,18 +146,18 @@ export default function HomePage() {
                 className="flex-1 min-w-0 px-3 py-2 text-sm outline-none bg-white"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-400">Letters, numbers, hyphens and underscores only.</p>
+            <p className="mt-1 text-xs text-gray-400">{t.slugHint}</p>
           </div>
 
           {/* Destination URL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Destination URL <span className="text-red-500">*</span>
+              {t.destinationUrl} <span className="text-red-500">*</span>
             </label>
             <input
               type="url"
               required
-              placeholder="https://example.com/very/long/url"
+              placeholder={t.destinationPlaceholder}
               value={form.destination_url}
               onChange={set('destination_url')}
               className={inputCls}
@@ -154,46 +166,46 @@ export default function HomePage() {
 
           {/* OG section */}
           <hr className="border-gray-100" />
-          <SectionLabel>OG Preview (optional)</SectionLabel>
-          <p className="text-xs text-gray-400 -mt-2">
-            Shown when this link is shared on Slack, iMessage, Twitter, etc.
-          </p>
+          <SectionLabel>{t.ogSection}</SectionLabel>
+          <p className="text-xs text-gray-400 -mt-2">{t.ogHint}</p>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">OG Title</label>
-            <input type="text" placeholder="My awesome page" value={form.og_title} onChange={set('og_title')} className={inputCls} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.ogTitle}</label>
+            <input type="text" placeholder={t.ogTitlePlaceholder} value={form.og_title} onChange={set('og_title')} className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">OG Description</label>
-            <textarea placeholder="A short description shown in link previews" value={form.og_description} onChange={set('og_description')} rows={2} className={`${inputCls} resize-none`} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.ogDescription}</label>
+            <textarea placeholder={t.ogDescriptionPlaceholder} value={form.og_description} onChange={set('og_description')} rows={2} className={`${inputCls} resize-none`} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">OG Image URL</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.ogImageUrl}</label>
             <input type="url" placeholder="https://example.com/og-image.jpg" value={form.og_image} onChange={set('og_image')} className={inputCls} />
           </div>
 
           {/* Landing page section */}
           <hr className="border-gray-100" />
-          <SectionLabel>Landing Page (optional)</SectionLabel>
+          <SectionLabel>{t.landingSection}</SectionLabel>
           <p className="text-xs text-gray-400 -mt-2">
-            When set, visitors can access <span className="font-mono">/go/{form.slug || 'slug'}</span> — a branded page before they proceed.
+            {t.landingHintBefore}
+            <span className="font-mono">/go/{form.slug || 'slug'}</span>
+            {t.landingHintAfter}
           </p>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input type="text" placeholder="Welcome! Check this out." value={form.landing_title} onChange={set('landing_title')} className={inputCls} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.landingTitle}</label>
+            <input type="text" placeholder={t.landingTitlePlaceholder} value={form.landing_title} onChange={set('landing_title')} className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea placeholder="A short message shown above the button." value={form.landing_description} onChange={set('landing_description')} rows={2} className={`${inputCls} resize-none`} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.landingDesc}</label>
+            <textarea placeholder={t.landingDescPlaceholder} value={form.landing_description} onChange={set('landing_description')} rows={2} className={`${inputCls} resize-none`} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.landingImageUrl}</label>
             <input type="url" placeholder="https://example.com/banner.jpg" value={form.landing_image} onChange={set('landing_image')} className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Button text</label>
-            <input type="text" placeholder="Continue →" value={form.button_text} onChange={set('button_text')} className={inputCls} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t.buttonText}</label>
+            <input type="text" placeholder={t.buttonTextPlaceholder} value={form.button_text} onChange={set('button_text')} className={inputCls} />
           </div>
 
           {error && (
@@ -207,13 +219,13 @@ export default function HomePage() {
             disabled={loading}
             className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Creating…' : 'Create short link'}
+            {loading ? t.creating : t.createLink}
           </button>
         </form>
 
         <p className="mt-4 text-center text-sm text-gray-400">
           <Link href="/admin" className="underline hover:text-gray-600">
-            View admin dashboard →
+            {t.adminLink}
           </Link>
         </p>
       </div>
@@ -231,11 +243,15 @@ function UrlRow({
   label,
   url,
   copied,
+  copyLabel,
+  copiedLabel,
   onCopy,
 }: {
   label: string
   url: string
   copied: boolean
+  copyLabel: string
+  copiedLabel: string
   onCopy: () => void
 }) {
   return (
@@ -250,7 +266,7 @@ function UrlRow({
           onClick={onCopy}
           className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors min-w-[60px]"
         >
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? copiedLabel : copyLabel}
         </button>
       </div>
     </div>
