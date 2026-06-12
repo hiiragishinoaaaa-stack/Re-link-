@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/lib/language-context'
+import { useAuth } from '@/lib/auth-context'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -27,6 +30,8 @@ const BASE_URL = 'https://re-link-ten.vercel.app'
 
 export default function HomePage() {
   const { t } = useLanguage()
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
   const [created, setCreated] = useState<CreatedLink | null>(null)
   const [error, setError] = useState('')
@@ -39,8 +44,14 @@ export default function HomePage() {
       setForm(f => ({ ...f, [key]: e.target.value }))
   }
 
+  async function handleSignOut() {
+    await getSupabaseBrowser().auth.signOut()
+    router.push('/login')
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!user) { router.push('/login'); return }
     setError('')
     setLoading(true)
     setCopiedDirect(false)
@@ -96,6 +107,34 @@ export default function HomePage() {
           <h1 className="text-3xl font-bold tracking-tight">Re:link</h1>
           <p className="mt-1 text-gray-500 text-sm">{t.tagline}</p>
         </div>
+
+        {/* Auth bar */}
+        {!authLoading && (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm text-sm">
+            {user ? (
+              <>
+                <span className="text-gray-500 truncate min-w-0">
+                  {t.loggedInAs}
+                  <span className="font-mono text-gray-700">{user.email}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="shrink-0 text-gray-400 hover:text-gray-700 underline transition-colors"
+                >
+                  {t.signOut}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-400">{t.signIn}</span>
+                <Link href="/login" className="shrink-0 text-indigo-600 hover:underline font-medium">
+                  {t.signIn} →
+                </Link>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Success banner */}
         {created && (

@@ -1,26 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+
+async function getAuthUser() {
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
 
 export async function GET() {
-  const supabase = getSupabase()
-  const { data, error } = await supabase
-    .from('links')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const user = await getAuthUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+
+  const isAdmin = ADMIN_EMAIL && user.email === ADMIN_EMAIL
+
+  // Admin sees all links; regular users see only their own.
+  const db = isAdmin ? getSupabaseAdmin() : await createSupabaseServerClient()
+  const query = db.from('links').select('*').order('created_at', { ascending: false })
+  const { data, error } = isAdmin
+    ? await query
+    : await query.eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
-// Slugs that must never be registered — they shadow Next.js internals or
-// built-in routes that users expect to work normally.
+// Slugs that must never be registered.
 const RESERVED_SLUGS = new Set([
-  'admin',
-  'api',
-  '_next',
-  'favicon.ico',
-  'robots.txt',
-  'sitemap.xml',
+  'admin', 'api', 'auth', 'login', 'signup', 'go',
+  '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml',
 ])
 
 function isSafeUrl(url: string): boolean {
@@ -33,6 +43,9 @@ function isSafeUrl(url: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -72,7 +85,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // og_image and landing_image are optional but if provided must be safe URLs
   const cleanOgImage = typeof og_image === 'string' ? og_image.trim() : ''
   if (cleanOgImage && !isSafeUrl(cleanOgImage)) {
     return NextResponse.json(
@@ -89,7 +101,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const supabase = getSupabase()
+  // Use admin client to bypass RLS for insert (RLS policy enforces user_id server-side).
+  const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('links')
     .insert({
@@ -102,6 +115,7 @@ export async function POST(req: NextRequest) {
       landing_description: typeof landing_description === 'string' ? landing_description.trim() || null : null,
       landing_image: cleanLandingImage || null,
       button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
+      user_id: user.id,
     })
     .select()
     .single()

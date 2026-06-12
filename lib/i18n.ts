@@ -96,6 +96,36 @@ export const translations = {
     uploadError: 'アップロードに失敗しました。',
     uploadHint: 'JPEG・PNG・GIF・WebP・SVG　最大 5 MB',
 
+    // Auth — labels & buttons
+    signIn: 'ログイン',
+    signingIn: 'ログイン中…',
+    signUp: 'アカウント作成',
+    signingUp: '作成中…',
+    signOut: 'ログアウト',
+    email: 'メールアドレス',
+    password: 'パスワード',
+    forgotPassword: 'パスワードを忘れた方',
+    resetPassword: 'パスワードをリセット',
+    sendResetEmail: 'リセットメールを送信する',
+    sendingEmail: '送信中…',
+    newPassword: '新しいパスワード',
+    updatePassword: 'パスワードを更新する',
+    updatingPassword: '更新中…',
+    backToLogin: 'ログインに戻る',
+    noAccount: 'アカウントをお持ちでない方はこちら',
+    haveAccount: 'すでにアカウントをお持ちの方はこちら',
+
+    // Auth — messages
+    signUpSuccess: '確認メールを送信しました。メールを確認してアカウントを有効化してください。',
+    resetEmailSent: 'パスワードリセット用のメールを送信しました。メールをご確認ください。',
+    passwordUpdated: 'パスワードを更新しました。ログインしてください。',
+    invalidCredentials: 'メールアドレスまたはパスワードが正しくありません。',
+    authError: '認証エラーが発生しました。もう一度お試しください。',
+
+    // Auth — UI
+    adminBadge: '管理者',
+    loggedInAs: 'ログイン中：',
+
     // Language switcher
     langJa: '日本語',
     langEn: 'English',
@@ -195,6 +225,36 @@ export const translations = {
     uploading: 'Uploading…',
     uploadError: 'Upload failed.',
     uploadHint: 'JPEG, PNG, GIF, WebP or SVG — max 5 MB',
+
+    // Auth — labels & buttons
+    signIn: 'Log in',
+    signingIn: 'Logging in…',
+    signUp: 'Sign up',
+    signingUp: 'Creating account…',
+    signOut: 'Log out',
+    email: 'Email',
+    password: 'Password',
+    forgotPassword: 'Forgot password?',
+    resetPassword: 'Reset password',
+    sendResetEmail: 'Send reset email',
+    sendingEmail: 'Sending…',
+    newPassword: 'New password',
+    updatePassword: 'Update password',
+    updatingPassword: 'Updating…',
+    backToLogin: 'Back to log in',
+    noAccount: "Don't have an account? Sign up",
+    haveAccount: 'Already have an account? Log in',
+
+    // Auth — messages
+    signUpSuccess: 'Check your email to confirm your account.',
+    resetEmailSent: 'Password reset email sent. Check your inbox.',
+    passwordUpdated: 'Password updated. Please log in.',
+    invalidCredentials: 'Invalid email or password.',
+    authError: 'Authentication error. Please try again.',
+
+    // Auth — UI
+    adminBadge: 'Admin',
+    loggedInAs: 'Logged in as ',
 
     // Language switcher
     langJa: '日本語',

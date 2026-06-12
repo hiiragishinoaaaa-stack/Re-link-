@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import LandingClient from './LandingClient'
 
 type Props = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const { data } = await getSupabase()
+  const { data } = await getSupabaseAdmin()
     .from('links')
     .select('og_title, og_description, og_image, landing_title')
     .eq('slug', slug)
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // The destination is resolved at click time — it is never embedded in the page HTML.
 async function resolveDestination(id: string): Promise<string> {
   'use server'
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
   await supabase.rpc('increment_click_count', { link_id: id })
   const { data } = await supabase
     .from('links')
@@ -54,7 +54,7 @@ async function resolveDestination(id: string): Promise<string> {
 
 export default async function GoPage({ params }: Props) {
   const { slug } = await params
-  const { data: link } = await getSupabase()
+  const { data: link } = await getSupabaseAdmin()
     .from('links')
     .select('id, landing_title, landing_description, landing_image, button_text')
     .eq('slug', slug)

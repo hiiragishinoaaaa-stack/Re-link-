@@ -13,6 +13,7 @@ export type Link = {
   button_text: string | null
   click_count: number
   created_at: string
+  user_id: string | null
 }
 
 // Create a new client per request (standard pattern for Next.js server-side code).

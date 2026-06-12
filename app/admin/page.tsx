@@ -1,25 +1,37 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Link as LinkRow } from '@/lib/supabase'
 import { useLanguage } from '@/lib/language-context'
+import { useAuth } from '@/lib/auth-context'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const BASE_URL = 'https://re-link-ten.vercel.app'
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 export default function AdminPage() {
   const { t } = useLanguage()
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [links, setLinks] = useState<LinkRow[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
 
+  const isAdmin = ADMIN_EMAIL && user?.email === ADMIN_EMAIL
+
   async function fetchLinks() {
     setFetchError('')
     try {
       const res = await fetch('/api/links')
+      if (res.status === 401) {
+        router.push('/login')
+        return
+      }
       if (!res.ok) {
         setFetchError(t.serverError + res.status)
         return
@@ -33,7 +45,9 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { fetchLinks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!authLoading) fetchLinks()
+  }, [authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleDelete(id: string) {
     if (!confirm(t.deleteConfirm)) return
@@ -51,6 +65,11 @@ export default function AdminPage() {
     } finally {
       setDeletingId(null)
     }
+  }
+
+  async function handleSignOut() {
+    await getSupabaseBrowser().auth.signOut()
+    router.push('/login')
   }
 
   const byClicks = [...links].sort((a, b) => b.click_count - a.click_count)
@@ -71,26 +90,42 @@ export default function AdminPage() {
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{t.adminTitle}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{t.adminTitle}</h1>
+              {isAdmin && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                  {t.adminBadge}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 mt-0.5">{t.adminSubtitle}</p>
+            {user && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {t.loggedInAs}<span className="font-mono">{user.email}</span>
+              </p>
+            )}
           </div>
-          <Link
-            href="/"
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
-          >
-            {t.newLink}
-          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              href="/"
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+            >
+              {t.newLink}
+            </Link>
+            <button
+              onClick={handleSignOut}
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              {t.signOut}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <StatCard label={t.totalLinks} value={links.length} />
           <StatCard label={t.totalClicks} value={totalClicks} />
-          <StatCard
-            label={t.topLink}
-            value={topSlug ? `/${topSlug}` : '—'}
-            mono
-          />
+          <StatCard label={t.topLink} value={topSlug ? `/${topSlug}` : '—'} mono />
         </div>
 
         {/* Error states */}
