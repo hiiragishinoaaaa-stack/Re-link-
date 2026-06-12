@@ -19,11 +19,12 @@ export default function ImageUpload({ value, onChange, placeholder }: Props) {
     setUploadError('')
     setUploading(true)
     try {
+      // file.slice() returns a plain Blob — Blob has no .name property, so the
+      // browser cannot inject the original (possibly non-ASCII) filename into the
+      // multipart Content-Disposition header, which would throw a ByteString error.
+      const blob = file.slice(0, file.size, file.type)
       const form = new FormData()
-      // Pass a static ASCII filename as the 3rd arg so the browser never puts
-      // file.name (which may be Japanese / emoji) into the Content-Disposition
-      // header — that would throw a ByteString error for non-Latin-1 characters.
-      form.append('file', file, 'upload')
+      form.append('file', blob, 'upload')
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
