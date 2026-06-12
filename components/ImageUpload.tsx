@@ -20,7 +20,10 @@ export default function ImageUpload({ value, onChange, placeholder }: Props) {
     setUploading(true)
     try {
       const form = new FormData()
-      form.append('file', file)
+      // Pass a static ASCII filename as the 3rd arg so the browser never puts
+      // file.name (which may be Japanese / emoji) into the Content-Disposition
+      // header — that would throw a ByteString error for non-Latin-1 characters.
+      form.append('file', file, 'upload')
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
