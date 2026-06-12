@@ -1,15 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables.\n' +
-      'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local',
-  )
-}
-
 export type Link = {
   id: string
   slug: string
@@ -21,4 +11,13 @@ export type Link = {
   created_at: string
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create a new client per request (standard pattern for Next.js server-side code).
+// Module-level createClient() throws during `next build` when env vars aren't
+// present, because Turbopack evaluates server modules at build time.
+// Env vars are always available at request time (Vercel injects them; locally use .env.local).
+export function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}
