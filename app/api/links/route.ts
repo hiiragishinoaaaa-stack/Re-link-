@@ -40,7 +40,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
   }
 
-  const { slug, destination_url, og_title, og_description, og_image } = body
+  const {
+    slug, destination_url,
+    og_title, og_description, og_image,
+    landing_title, landing_description, landing_image, button_text,
+  } = body
 
   if (!slug || typeof slug !== 'string') {
     return NextResponse.json({ error: 'slug is required.' }, { status: 400 })
@@ -68,11 +72,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // og_image is optional but if provided must also be a safe URL
-  const cleanImage = typeof og_image === 'string' ? og_image.trim() : ''
-  if (cleanImage && !isSafeUrl(cleanImage)) {
+  // og_image and landing_image are optional but if provided must be safe URLs
+  const cleanOgImage = typeof og_image === 'string' ? og_image.trim() : ''
+  if (cleanOgImage && !isSafeUrl(cleanOgImage)) {
     return NextResponse.json(
       { error: 'og_image must be a valid http:// or https:// URL.' },
+      { status: 400 },
+    )
+  }
+
+  const cleanLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
+  if (cleanLandingImage && !isSafeUrl(cleanLandingImage)) {
+    return NextResponse.json(
+      { error: 'landing_image must be a valid http:// or https:// URL.' },
       { status: 400 },
     )
   }
@@ -85,7 +97,11 @@ export async function POST(req: NextRequest) {
       destination_url: cleanDest,
       og_title: typeof og_title === 'string' ? og_title.trim() || null : null,
       og_description: typeof og_description === 'string' ? og_description.trim() || null : null,
-      og_image: cleanImage || null,
+      og_image: cleanOgImage || null,
+      landing_title: typeof landing_title === 'string' ? landing_title.trim() || null : null,
+      landing_description: typeof landing_description === 'string' ? landing_description.trim() || null : null,
+      landing_image: cleanLandingImage || null,
+      button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
     })
     .select()
     .single()

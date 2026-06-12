@@ -7,6 +7,10 @@ export type Link = {
   og_title: string | null
   og_description: string | null
   og_image: string | null
+  landing_title: string | null
+  landing_description: string | null
+  landing_image: string | null
+  button_text: string | null
   click_count: number
   created_at: string
 }

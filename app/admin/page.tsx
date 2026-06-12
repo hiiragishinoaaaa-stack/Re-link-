@@ -112,6 +112,7 @@ export default function AdminPage() {
                     <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">Short link</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600">Destination</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">OG title</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">Landing page</th>
                     <th className="px-4 py-3 text-right font-semibold text-gray-600">Clicks</th>
                     <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">Created</th>
                     <th className="px-4 py-3"></th>
@@ -143,6 +144,22 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
                         {link.og_title ?? <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {link.landing_title ? (
+                          <a
+                            href={`${baseUrl}/go/${link.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                            title={link.landing_title}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                            /go/{link.slug}
+                          </a>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
                         {link.click_count}

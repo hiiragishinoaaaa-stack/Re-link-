@@ -5,32 +5,45 @@ import Link from 'next/link'
 
 type CreatedLink = {
   slug: string
-  destination_url: string
+  landing_title: string | null
+}
+
+const EMPTY_FORM = {
+  slug: '',
+  destination_url: '',
+  og_title: '',
+  og_description: '',
+  og_image: '',
+  landing_title: '',
+  landing_description: '',
+  landing_image: '',
+  button_text: '',
 }
 
 export default function HomePage() {
-  const [form, setForm] = useState({
-    slug: '',
-    destination_url: '',
-    og_title: '',
-    og_description: '',
-    og_image: '',
-  })
+  const [form, setForm] = useState(EMPTY_FORM)
   const [created, setCreated] = useState<CreatedLink | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedDirect, setCopiedDirect] = useState(false)
+  const [copiedLanding, setCopiedLanding] = useState(false)
 
   const baseUrl =
     typeof window !== 'undefined'
       ? window.location.origin
       : process.env.NEXT_PUBLIC_BASE_URL ?? ''
 
+  function set(key: keyof typeof EMPTY_FORM) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [key]: e.target.value }))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setCopied(false)
+    setCopiedDirect(false)
+    setCopiedLanding(false)
 
     try {
       const res = await fetch('/api/links', {
@@ -38,16 +51,13 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-
       const data = await res.json()
-
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong.')
         return
       }
-
-      setCreated(data)
-      setForm({ slug: '', destination_url: '', og_title: '', og_description: '', og_image: '' })
+      setCreated({ slug: data.slug, landing_title: data.landing_title ?? null })
+      setForm(EMPTY_FORM)
     } catch {
       setError('Network error — please try again.')
     } finally {
@@ -55,17 +65,22 @@ export default function HomePage() {
     }
   }
 
-  async function copyLink() {
-    if (!created) return
+  async function copy(text: string, setCopied: (v: boolean) => void) {
     try {
-      await navigator.clipboard.writeText(`${baseUrl}/${created.slug}`)
+      await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Clipboard API unavailable (non-HTTPS, Firefox without permission, etc.)
-      // Silently ignore — the URL is visible in the code element for manual copy
+      // Clipboard API unavailable — URL remains visible for manual copy
     }
   }
+
+  const directUrl = created ? `${baseUrl}/${created.slug}` : ''
+  const landingUrl = created ? `${baseUrl}/go/${created.slug}` : ''
+  const hasLanding = !!created?.landing_title
+
+  const inputCls =
+    'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
@@ -73,29 +88,36 @@ export default function HomePage() {
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Re:link</h1>
-          <p className="mt-1 text-gray-500 text-sm">Short links with custom OG previews</p>
+          <p className="mt-1 text-gray-500 text-sm">Short links with custom OG previews and landing pages</p>
         </div>
 
         {/* Success banner */}
         {created && (
-          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4">
-            <p className="text-sm font-medium text-green-800 mb-2">Link created!</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-white border border-green-200 px-3 py-2 text-sm text-green-900 truncate min-w-0">
-                {baseUrl}/{created.slug}
-              </code>
-              <button
-                onClick={copyLink}
-                className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors min-w-[60px]"
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 space-y-3">
+            <p className="text-sm font-medium text-green-800">Link created!</p>
+
+            <UrlRow
+              label="Direct redirect"
+              url={directUrl}
+              copied={copiedDirect}
+              onCopy={() => copy(directUrl, setCopiedDirect)}
+            />
+
+            {hasLanding && (
+              <UrlRow
+                label="Landing page"
+                url={landingUrl}
+                copied={copiedLanding}
+                onCopy={() => copy(landingUrl, setCopiedLanding)}
+              />
+            )}
           </div>
         )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+
+          {/* Slug */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Short slug <span className="text-red-500">*</span>
@@ -118,6 +140,7 @@ export default function HomePage() {
             <p className="mt-1 text-xs text-gray-400">Letters, numbers, hyphens and underscores only.</p>
           </div>
 
+          {/* Destination URL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Destination URL <span className="text-red-500">*</span>
@@ -127,47 +150,53 @@ export default function HomePage() {
               required
               placeholder="https://example.com/very/long/url"
               value={form.destination_url}
-              onChange={e => setForm(f => ({ ...f, destination_url: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              onChange={set('destination_url')}
+              className={inputCls}
             />
           </div>
 
+          {/* OG section */}
           <hr className="border-gray-100" />
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-            OG Preview (optional)
+          <SectionLabel>OG Preview (optional)</SectionLabel>
+          <p className="text-xs text-gray-400 -mt-2">
+            Shown when this link is shared on Slack, iMessage, Twitter, etc.
           </p>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">OG Title</label>
-            <input
-              type="text"
-              placeholder="My awesome page"
-              value={form.og_title}
-              onChange={e => setForm(f => ({ ...f, og_title: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
+            <input type="text" placeholder="My awesome page" value={form.og_title} onChange={set('og_title')} className={inputCls} />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">OG Description</label>
-            <textarea
-              placeholder="A short description shown in link previews"
-              value={form.og_description}
-              onChange={e => setForm(f => ({ ...f, og_description: e.target.value }))}
-              rows={2}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-            />
+            <textarea placeholder="A short description shown in link previews" value={form.og_description} onChange={set('og_description')} rows={2} className={`${inputCls} resize-none`} />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">OG Image URL</label>
-            <input
-              type="url"
-              placeholder="https://example.com/og-image.jpg"
-              value={form.og_image}
-              onChange={e => setForm(f => ({ ...f, og_image: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
+            <input type="url" placeholder="https://example.com/og-image.jpg" value={form.og_image} onChange={set('og_image')} className={inputCls} />
+          </div>
+
+          {/* Landing page section */}
+          <hr className="border-gray-100" />
+          <SectionLabel>Landing Page (optional)</SectionLabel>
+          <p className="text-xs text-gray-400 -mt-2">
+            When set, visitors can access <span className="font-mono">/go/{form.slug || 'slug'}</span> — a branded page before they proceed.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input type="text" placeholder="Welcome! Check this out." value={form.landing_title} onChange={set('landing_title')} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea placeholder="A short message shown above the button." value={form.landing_description} onChange={set('landing_description')} rows={2} className={`${inputCls} resize-none`} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+            <input type="url" placeholder="https://example.com/banner.jpg" value={form.landing_image} onChange={set('landing_image')} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Button text</label>
+            <input type="text" placeholder="Continue →" value={form.button_text} onChange={set('button_text')} className={inputCls} />
           </div>
 
           {error && (
@@ -192,5 +221,41 @@ export default function HomePage() {
         </p>
       </div>
     </main>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{children}</p>
+  )
+}
+
+function UrlRow({
+  label,
+  url,
+  copied,
+  onCopy,
+}: {
+  label: string
+  url: string
+  copied: boolean
+  onCopy: () => void
+}) {
+  return (
+    <div>
+      <p className="text-xs text-green-700 mb-1">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 rounded bg-white border border-green-200 px-3 py-2 text-sm text-green-900 truncate min-w-0">
+          {url}
+        </code>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors min-w-[60px]"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
   )
 }
