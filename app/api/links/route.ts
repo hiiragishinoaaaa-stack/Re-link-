@@ -45,69 +45,16 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
-// ── Diagnostic helpers ────────────────────────────────────────────────────────
-
-function logField(label: string, val: unknown) {
-  if (typeof val !== 'string') {
-    console.log(`[create-link]   ${label}: (${typeof val}) ${JSON.stringify(val)}`)
-    return
-  }
-  // Scan for the first character with code > 255 (ByteString boundary).
-  for (let i = 0; i < val.length; i++) {
-    const code = val.charCodeAt(i)
-    if (code > 255) {
-      console.error(
-        `[create-link] ⚠ BYTESTRING VIOLATION  field="${label}"  index=${i}  charCode=${code}  char="${val.charAt(i)}"`,
-      )
-      console.error(`[create-link]   full value (JSON): ${JSON.stringify(val)}`)
-      return
-    }
-  }
-  // Truncate long values for readability.
-  const display = val.length > 120 ? `${JSON.stringify(val.slice(0, 120))}…` : JSON.stringify(val)
-  console.log(`[create-link]   ${label}: ${display}`)
-}
-
-// ── POST handler wrapped in a full error boundary ─────────────────────────────
-
 export async function POST(req: NextRequest) {
-  try {
-    return await handlePost(req)
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    const stack   = err instanceof Error ? (err.stack ?? message) : message
-    console.error('[create-link] !! UNHANDLED EXCEPTION:', stack)
-    return NextResponse.json({ error: message, _debug_stack: stack }, { status: 500 })
-  }
-}
-
-async function handlePost(req: NextRequest) {
-  // ── Step 1: read body as raw text so we can log BEFORE any HTTP requests ──
-  const rawText = await req.text()
-  console.log('[create-link] raw body (first 500 chars):', rawText.slice(0, 500))
+  const user = await getAuthUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
 
   let body: Record<string, unknown>
   try {
-    body = JSON.parse(rawText)
+    body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
   }
-
-  // ── Step 2: log + inspect every submitted field for ByteString violations ──
-  console.log('[create-link] submitted fields:')
-  const FIELDS = [
-    'slug', 'destination_url',
-    'og_title', 'og_description', 'og_image',
-    'landing_title', 'landing_description', 'landing_image',
-    'button_text',
-  ] as const
-  for (const f of FIELDS) logField(f, body[f])
-
-  // ── Step 3: auth (this is the first outgoing HTTP call) ────────────────────
-  console.log('[create-link] calling getAuthUser...')
-  const user = await getAuthUser()
-  console.log('[create-link] getAuthUser done, user.id =', user?.id ?? '(null)')
-  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
 
   const {
     slug, destination_url,
@@ -122,6 +69,7 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
   }
 
+  // Slug: ASCII only (letters, numbers, hyphens, underscores).
   const cleanSlug = slug.trim().toLowerCase()
   if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
     return NextResponse.json(
@@ -133,6 +81,7 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
   }
 
+  // URLs: validate scheme and percent-encode via new URL().
   const cleanDest = normalizeUrl(destination_url.trim())
   if (!cleanDest) {
     return NextResponse.json(
@@ -159,10 +108,6 @@ async function handlePost(req: NextRequest) {
     )
   }
 
-  // ── Step 4: Supabase insert (second outgoing HTTP call) ────────────────────
-  console.log('[create-link] calling supabase insert, cleanDest=', cleanDest,
-    'cleanOgImage=', cleanOgImage, 'cleanLandingImage=', cleanLandingImage)
-
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('links')
@@ -178,10 +123,8 @@ async function handlePost(req: NextRequest) {
       button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
       user_id: user.id,
     })
-    .select()
+    .select('id, slug, landing_title')
     .single()
-
-  console.log('[create-link] insert done, error=', error?.message ?? 'none')
 
   if (error) {
     if (error.code === '23505') {
@@ -190,16 +133,8 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Return only the fields the client needs — never pass the full row
-  // (which contains button_text, og_title, etc.) through the response
-  // pipeline, since those fields may contain non-Latin-1 characters that
-  // trigger a ByteString validation error in Vercel's runtime.
   return NextResponse.json(
-    {
-      id: data.id,
-      slug: data.slug,
-      landing_title: data.landing_title ?? null,
-    },
+    { id: data.id, slug: data.slug, hasLanding: data.landing_title != null },
     { status: 201 },
   )
 }
