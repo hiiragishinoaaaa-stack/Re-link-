@@ -190,5 +190,16 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data, { status: 201 })
+  // Return only the fields the client needs — never pass the full row
+  // (which contains button_text, og_title, etc.) through the response
+  // pipeline, since those fields may contain non-Latin-1 characters that
+  // trigger a ByteString validation error in Vercel's runtime.
+  return NextResponse.json(
+    {
+      id: data.id,
+      slug: data.slug,
+      landing_title: data.landing_title ?? null,
+    },
+    { status: 201 },
+  )
 }
