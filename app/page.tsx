@@ -11,7 +11,7 @@ import ImageUpload from '@/components/ImageUpload'
 
 type CreatedLink = {
   slug: string
-  landing_title: string | null
+  hasLanding: boolean
 }
 
 const EMPTY_FORM = {
@@ -68,7 +68,7 @@ export default function HomePage() {
         setError(data.error ?? t.somethingWrong)
         return
       }
-      setCreated({ slug: data.slug, landing_title: data.landing_title ?? null })
+      setCreated({ slug: data.slug, hasLanding: !!data.hasLanding })
       setForm(EMPTY_FORM)
     } catch {
       setError(t.networkError)
@@ -89,7 +89,7 @@ export default function HomePage() {
 
   const directUrl = created ? `${BASE_URL}/${created.slug}` : ''
   const landingUrl = created ? `${BASE_URL}/go/${created.slug}` : ''
-  const hasLanding = !!created?.landing_title
+  const hasLanding = !!created?.hasLanding
 
   const inputCls =
     'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'

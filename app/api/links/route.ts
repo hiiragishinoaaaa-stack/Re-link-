@@ -33,12 +33,15 @@ const RESERVED_SLUGS = new Set([
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml',
 ])
 
-function isSafeUrl(url: string): boolean {
+// Validate protocol and return the URL's normalized, percent-encoded href.
+// Returns null when the URL is invalid or uses a non-http(s) scheme.
+function normalizeUrl(raw: string): string | null {
   try {
-    const { protocol } = new URL(url)
-    return protocol === 'http:' || protocol === 'https:'
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.href
   } catch {
-    return false
+    return null
   }
 }
 
@@ -66,6 +69,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
   }
 
+  // Slug: ASCII only (letters, numbers, hyphens, underscores).
   const cleanSlug = slug.trim().toLowerCase()
   if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
     return NextResponse.json(
@@ -77,31 +81,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
   }
 
-  const cleanDest = destination_url.trim()
-  if (!isSafeUrl(cleanDest)) {
+  // URLs: validate scheme and percent-encode via new URL().
+  const cleanDest = normalizeUrl(destination_url.trim())
+  if (!cleanDest) {
     return NextResponse.json(
       { error: 'destination_url must start with http:// or https://.' },
       { status: 400 },
     )
   }
 
-  const cleanOgImage = typeof og_image === 'string' ? og_image.trim() : ''
-  if (cleanOgImage && !isSafeUrl(cleanOgImage)) {
+  const rawOgImage = typeof og_image === 'string' ? og_image.trim() : ''
+  const cleanOgImage = rawOgImage ? normalizeUrl(rawOgImage) : null
+  if (rawOgImage && !cleanOgImage) {
     return NextResponse.json(
       { error: 'og_image must be a valid http:// or https:// URL.' },
       { status: 400 },
     )
   }
 
-  const cleanLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
-  if (cleanLandingImage && !isSafeUrl(cleanLandingImage)) {
+  const rawLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
+  const cleanLandingImage = rawLandingImage ? normalizeUrl(rawLandingImage) : null
+  if (rawLandingImage && !cleanLandingImage) {
     return NextResponse.json(
       { error: 'landing_image must be a valid http:// or https:// URL.' },
       { status: 400 },
     )
   }
 
-  // Use admin client to bypass RLS for insert (RLS policy enforces user_id server-side).
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('links')
@@ -117,7 +123,7 @@ export async function POST(req: NextRequest) {
       button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
       user_id: user.id,
     })
-    .select()
+    .select('id, slug, landing_title')
     .single()
 
   if (error) {
@@ -127,5 +133,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data, { status: 201 })
+  return NextResponse.json(
+    { id: data.id, slug: data.slug, hasLanding: data.landing_title != null },
+    { status: 201 },
+  )
 }
