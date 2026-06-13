@@ -46,95 +46,110 @@ function normalizeUrl(raw: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-
-  let body: Record<string, unknown>
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
-  }
+    console.log('[links POST] step=start')
 
-  const {
-    slug, destination_url,
-    og_title, og_description, og_image,
-    landing_title, landing_description, landing_image, button_text,
-  } = body
+    const user = await getAuthUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+    console.log('[links POST] step=auth_ok')
 
-  if (!slug || typeof slug !== 'string') {
-    return NextResponse.json({ error: 'slug is required.' }, { status: 400 })
-  }
-  if (!destination_url || typeof destination_url !== 'string') {
-    return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
-  }
-
-  // Slug: ASCII only (letters, numbers, hyphens, underscores).
-  const cleanSlug = slug.trim().toLowerCase()
-  if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
-    return NextResponse.json(
-      { error: 'Slug may only contain letters, numbers, hyphens, and underscores.' },
-      { status: 400 },
-    )
-  }
-  if (RESERVED_SLUGS.has(cleanSlug)) {
-    return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
-  }
-
-  // URLs: validate scheme and percent-encode via new URL().
-  const cleanDest = normalizeUrl(destination_url.trim())
-  if (!cleanDest) {
-    return NextResponse.json(
-      { error: 'destination_url must start with http:// or https://.' },
-      { status: 400 },
-    )
-  }
-
-  const rawOgImage = typeof og_image === 'string' ? og_image.trim() : ''
-  const cleanOgImage = rawOgImage ? normalizeUrl(rawOgImage) : null
-  if (rawOgImage && !cleanOgImage) {
-    return NextResponse.json(
-      { error: 'og_image must be a valid http:// or https:// URL.' },
-      { status: 400 },
-    )
-  }
-
-  const rawLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
-  const cleanLandingImage = rawLandingImage ? normalizeUrl(rawLandingImage) : null
-  if (rawLandingImage && !cleanLandingImage) {
-    return NextResponse.json(
-      { error: 'landing_image must be a valid http:// or https:// URL.' },
-      { status: 400 },
-    )
-  }
-
-  const supabase = getSupabaseAdmin()
-  const { data, error } = await supabase
-    .from('links')
-    .insert({
-      slug: cleanSlug,
-      destination_url: cleanDest,
-      og_title: typeof og_title === 'string' ? og_title.trim() || null : null,
-      og_description: typeof og_description === 'string' ? og_description.trim() || null : null,
-      og_image: cleanOgImage || null,
-      landing_title: typeof landing_title === 'string' ? landing_title.trim() || null : null,
-      landing_description: typeof landing_description === 'string' ? landing_description.trim() || null : null,
-      landing_image: cleanLandingImage || null,
-      button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
-      user_id: user.id,
-    })
-    .select('id, slug, landing_title')
-    .single()
-
-  if (error) {
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'That slug is already taken.' }, { status: 409 })
+    let body: Record<string, unknown>
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+    console.log('[links POST] step=body_parsed')
 
-  return NextResponse.json(
-    { id: data.id, slug: data.slug, hasLanding: data.landing_title != null },
-    { status: 201 },
-  )
+    const {
+      slug, destination_url,
+      og_title, og_description, og_image,
+      landing_title, landing_description, landing_image, button_text,
+    } = body
+
+    if (!slug || typeof slug !== 'string') {
+      return NextResponse.json({ error: 'slug is required.' }, { status: 400 })
+    }
+    if (!destination_url || typeof destination_url !== 'string') {
+      return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
+    }
+
+    // Slug: ASCII only (letters, numbers, hyphens, underscores).
+    const cleanSlug = slug.trim().toLowerCase()
+    if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
+      return NextResponse.json(
+        { error: 'Slug may only contain letters, numbers, hyphens, and underscores.' },
+        { status: 400 },
+      )
+    }
+    if (RESERVED_SLUGS.has(cleanSlug)) {
+      return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
+    }
+
+    // URLs: validate scheme and percent-encode via new URL().
+    const cleanDest = normalizeUrl(destination_url.trim())
+    if (!cleanDest) {
+      return NextResponse.json(
+        { error: 'destination_url must start with http:// or https://.' },
+        { status: 400 },
+      )
+    }
+
+    const rawOgImage = typeof og_image === 'string' ? og_image.trim() : ''
+    const cleanOgImage = rawOgImage ? normalizeUrl(rawOgImage) : null
+    if (rawOgImage && !cleanOgImage) {
+      return NextResponse.json(
+        { error: 'og_image must be a valid http:// or https:// URL.' },
+        { status: 400 },
+      )
+    }
+
+    const rawLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
+    const cleanLandingImage = rawLandingImage ? normalizeUrl(rawLandingImage) : null
+    if (rawLandingImage && !cleanLandingImage) {
+      return NextResponse.json(
+        { error: 'landing_image must be a valid http:// or https:// URL.' },
+        { status: 400 },
+      )
+    }
+
+    console.log('[links POST] step=before_insert')
+    const supabase = getSupabaseAdmin()
+    const { data, error } = await supabase
+      .from('links')
+      .insert({
+        slug: cleanSlug,
+        destination_url: cleanDest,
+        og_title: typeof og_title === 'string' ? og_title.trim() || null : null,
+        og_description: typeof og_description === 'string' ? og_description.trim() || null : null,
+        og_image: cleanOgImage || null,
+        landing_title: typeof landing_title === 'string' ? landing_title.trim() || null : null,
+        landing_description: typeof landing_description === 'string' ? landing_description.trim() || null : null,
+        landing_image: cleanLandingImage || null,
+        button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
+        user_id: user.id,
+      })
+      .select('id, slug, landing_title')
+      .single()
+
+    if (error) {
+      console.log('[links POST] step=insert_error code=' + error.code)
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'That slug is already taken.' }, { status: 409 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const hasLanding = data.landing_title != null
+    console.log('[links POST] step=insert_ok hasLanding=' + hasLanding)
+
+    const res = NextResponse.json({ id: data.id, slug: data.slug, hasLanding }, { status: 201 })
+    console.log('[links POST] step=response_built')
+    return res
+
+  } catch (err: unknown) {
+    const stack = err instanceof Error ? (err.stack ?? err.message) : String(err)
+    console.error('[links POST] CRASH\n' + stack)
+    return NextResponse.json({ error: 'Internal server error.' }, { status: 500 })
+  }
 }
