@@ -33,31 +33,81 @@ const RESERVED_SLUGS = new Set([
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml',
 ])
 
-// Validate protocol and return the URL's normalized, percent-encoded href so
-// that non-ASCII characters (e.g. Japanese path segments like /テスト) never
-// reach any HTTP header (Location, Link, Content-Location, etc.).
+// Validate protocol and return the URL's normalized, percent-encoded href.
 // Returns null when the URL is invalid or uses a non-http(s) scheme.
 function normalizeUrl(raw: string): string | null {
   try {
     const parsed = new URL(raw)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-    // .href is always fully percent-encoded — safe for any HTTP header context.
     return parsed.href
   } catch {
     return null
   }
 }
 
+// ── Diagnostic helpers ────────────────────────────────────────────────────────
+
+function logField(label: string, val: unknown) {
+  if (typeof val !== 'string') {
+    console.log(`[create-link]   ${label}: (${typeof val}) ${JSON.stringify(val)}`)
+    return
+  }
+  // Scan for the first character with code > 255 (ByteString boundary).
+  for (let i = 0; i < val.length; i++) {
+    const code = val.charCodeAt(i)
+    if (code > 255) {
+      console.error(
+        `[create-link] ⚠ BYTESTRING VIOLATION  field="${label}"  index=${i}  charCode=${code}  char="${val.charAt(i)}"`,
+      )
+      console.error(`[create-link]   full value (JSON): ${JSON.stringify(val)}`)
+      return
+    }
+  }
+  // Truncate long values for readability.
+  const display = val.length > 120 ? `${JSON.stringify(val.slice(0, 120))}…` : JSON.stringify(val)
+  console.log(`[create-link]   ${label}: ${display}`)
+}
+
+// ── POST handler wrapped in a full error boundary ─────────────────────────────
+
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+  try {
+    return await handlePost(req)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    const stack   = err instanceof Error ? (err.stack ?? message) : message
+    console.error('[create-link] !! UNHANDLED EXCEPTION:', stack)
+    return NextResponse.json({ error: message, _debug_stack: stack }, { status: 500 })
+  }
+}
+
+async function handlePost(req: NextRequest) {
+  // ── Step 1: read body as raw text so we can log BEFORE any HTTP requests ──
+  const rawText = await req.text()
+  console.log('[create-link] raw body (first 500 chars):', rawText.slice(0, 500))
 
   let body: Record<string, unknown>
   try {
-    body = await req.json()
+    body = JSON.parse(rawText)
   } catch {
     return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
   }
+
+  // ── Step 2: log + inspect every submitted field for ByteString violations ──
+  console.log('[create-link] submitted fields:')
+  const FIELDS = [
+    'slug', 'destination_url',
+    'og_title', 'og_description', 'og_image',
+    'landing_title', 'landing_description', 'landing_image',
+    'button_text',
+  ] as const
+  for (const f of FIELDS) logField(f, body[f])
+
+  // ── Step 3: auth (this is the first outgoing HTTP call) ────────────────────
+  console.log('[create-link] calling getAuthUser...')
+  const user = await getAuthUser()
+  console.log('[create-link] getAuthUser done, user.id =', user?.id ?? '(null)')
+  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
 
   const {
     slug, destination_url,
@@ -72,7 +122,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
   }
 
-  // Slug: ASCII-only, enforced both client- and server-side.
   const cleanSlug = slug.trim().toLowerCase()
   if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
     return NextResponse.json(
@@ -84,9 +133,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
   }
 
-  // URL fields: normalize through new URL() so non-ASCII characters are
-  // percent-encoded. This guarantees the stored value is a valid ASCII URI and
-  // can never trigger a ByteString error if it ends up in an HTTP header.
   const cleanDest = normalizeUrl(destination_url.trim())
   if (!cleanDest) {
     return NextResponse.json(
@@ -113,9 +159,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Text fields (og_title, og_description, landing_title, landing_description,
-  // button_text) are stored as-is — full Unicode is intentional and expected.
-  // They go only into the Supabase JSON body, never into HTTP headers.
+  // ── Step 4: Supabase insert (second outgoing HTTP call) ────────────────────
+  console.log('[create-link] calling supabase insert, cleanDest=', cleanDest,
+    'cleanOgImage=', cleanOgImage, 'cleanLandingImage=', cleanLandingImage)
+
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('links')
@@ -133,6 +180,8 @@ export async function POST(req: NextRequest) {
     })
     .select()
     .single()
+
+  console.log('[create-link] insert done, error=', error?.message ?? 'none')
 
   if (error) {
     if (error.code === '23505') {
