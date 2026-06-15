@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
+const RESERVED_SLUGS = new Set([
+  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.json',
+  '_next', 'api', 'admin', 'login', 'signup', 'auth', 'go',
+])
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
+
+  // Reject non-ASCII slugs and reserved paths before any header construction.
+  // Vercel passes nxtPslug containing the raw URL segment (possibly Japanese)
+  // and Next.js would embed it in x-next-cache-tags, triggering a ByteString error.
+  if (!/^[a-zA-Z0-9_-]+$/.test(slug) || RESERVED_SLUGS.has(slug)) {
+    return new NextResponse('Not Found', { status: 404 })
+  }
+
   const supabase = getSupabaseAdmin()
 
   const { data: link, error } = await supabase
