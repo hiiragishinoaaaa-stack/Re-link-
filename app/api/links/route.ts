@@ -3,14 +3,25 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  await req.json()
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
 
   const { data, error } = await getSupabaseAdmin()
     .from('links')
-    .insert({ slug: body.slug, destination_url: body.destination_url, user_id: user.id })
+    .insert({
+      slug: 'debug-test',
+      destination_url: 'https://example.com',
+      og_title: '',
+      og_description: '',
+      og_image: '',
+      landing_title: '',
+      landing_description: '',
+      landing_image: '',
+      button_text: 'Open',
+      user_id: user.id,
+    })
     .select('slug')
     .single()
 
