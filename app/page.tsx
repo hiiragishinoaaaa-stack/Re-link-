@@ -38,6 +38,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [copiedDirect, setCopiedDirect] = useState(false)
   const [copiedLanding, setCopiedLanding] = useState(false)
+  const [debug, setDebug] = useState<string[]>([])
 
   function set(key: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -57,22 +58,52 @@ export default function HomePage() {
     setCopiedDirect(false)
     setCopiedLanding(false)
 
+    const logs: string[] = []
     try {
-      const res = await fetch('/api/links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? t.somethingWrong)
+      const requestBody = JSON.stringify(form)
+      logs.push(`REQUEST BODY: ${requestBody}`)
+
+      let res: Response
+      try {
+        res = await fetch('/api/links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+        })
+      } catch (fetchErr) {
+        logs.push(`FETCH THREW: ${(fetchErr as Error).message}`)
+        setDebug(logs)
+        setError((fetchErr as Error).message)
         return
       }
-      setCreated({ slug: data.slug, hasLanding: !!data.hasLanding })
+
+      logs.push(`STATUS: ${res.status} ${res.statusText}`)
+
+      const rawText = await res.text()
+      logs.push(`RAW BODY: ${rawText}`)
+
+      let data: Record<string, unknown>
+      try {
+        data = JSON.parse(rawText)
+      } catch (parseErr) {
+        logs.push(`JSON PARSE ERROR: ${(parseErr as Error).message}`)
+        setDebug(logs)
+        setError(`JSON parse failed: ${(parseErr as Error).message}`)
+        return
+      }
+
+      if (!res.ok) {
+        setError((data.error as string) ?? t.somethingWrong)
+        setDebug(logs)
+        return
+      }
+      setCreated({ slug: data.slug as string, hasLanding: !!(data.hasLanding) })
       setForm(EMPTY_FORM)
-    } catch {
-      setError(t.networkError)
+    } catch (err) {
+      logs.push(`OUTER CATCH: ${(err as Error).message}`)
+      setError((err as Error).message)
     } finally {
+      setDebug(logs)
       setLoading(false)
     }
   }
@@ -276,6 +307,12 @@ export default function HomePage() {
             {t.adminLink}
           </Link>
         </p>
+
+        {debug.length > 0 && (
+          <pre className="mt-4 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-xs text-yellow-900 whitespace-pre-wrap break-all">
+            {debug.join('\n')}
+          </pre>
+        )}
       </div>
     </main>
   )
