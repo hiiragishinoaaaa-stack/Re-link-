@@ -293,6 +293,12 @@ export default function HomePage() {
             </p>
           )}
 
+          {debug.length > 0 && (
+            <pre className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-900 whitespace-pre-wrap break-all overflow-auto max-h-60">
+              {debug.join('\n')}
+            </pre>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -308,11 +314,6 @@ export default function HomePage() {
           </Link>
         </p>
 
-        {debug.length > 0 && (
-          <pre className="mt-4 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-xs text-yellow-900 whitespace-pre-wrap break-all">
-            {debug.join('\n')}
-          </pre>
-        )}
       </div>
     </main>
   )
