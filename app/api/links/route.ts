@@ -11,7 +11,7 @@ async function getAuthUser() {
 }
 
 export async function GET() {
-  return Response.json({ links: [] })
+  return Response.json([])
 }
 
 export async function POST(req: NextRequest) {
