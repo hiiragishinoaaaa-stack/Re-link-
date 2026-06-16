@@ -11,18 +11,7 @@ async function getAuthUser() {
 }
 
 export async function GET() {
-  const user = await getAuthUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-
-  const isAdmin = ADMIN_EMAIL && user.email === ADMIN_EMAIL
-  const db = isAdmin ? getSupabaseAdmin() : await createSupabaseServerClient()
-  const query = db.from('links').select('*').order('created_at', { ascending: false })
-  const { data, error } = isAdmin
-    ? await query
-    : await query.eq('user_id', user.id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return Response.json({ links: [] })
 }
 
 export async function POST(req: NextRequest) {
