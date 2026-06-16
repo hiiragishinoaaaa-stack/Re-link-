@@ -1,5 +1,29 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getSupabaseAdmin } from '@/lib/supabase'
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+
+async function getAuthUser() {
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
+export async function GET() {
+  const user = await getAuthUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+
+  const isAdmin = ADMIN_EMAIL && user.email === ADMIN_EMAIL
+  const db = isAdmin ? getSupabaseAdmin() : await createSupabaseServerClient()
+  const query = db.from('links').select('*').order('created_at', { ascending: false })
+  const { data, error } = isAdmin
+    ? await query
+    : await query.eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
 
 export async function POST(req: NextRequest) {
   await req.json()
