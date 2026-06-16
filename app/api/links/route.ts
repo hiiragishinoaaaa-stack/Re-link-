@@ -1,17 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getSupabaseAdmin } from '@/lib/supabase'
-
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-
-async function getAuthUser() {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
-}
 
 export async function GET() {
   return Response.json([])
+}
+
+function assertAsciiHeaders(headers: Record<string, string>) {
+  for (const [key, value] of Object.entries(headers)) {
+    const s = String(value)
+    for (let i = 0; i < s.length; i++) {
+      if (s.charCodeAt(i) > 255) {
+        throw new Error(
+          `BAD_HEADER key=${key} index=${i} char=${s[i]} code=${s.charCodeAt(i)} value=${s}`
+        )
+      }
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -29,14 +33,20 @@ export async function POST(req: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
+    const insertHeaders: Record<string, string> = {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    }
+
+    stage = 'assert_headers'
+    assertAsciiHeaders(insertHeaders)
+
+    stage = 'fetch'
     const res = await fetch(`${supabaseUrl}/rest/v1/links`, {
       method: 'POST',
-      headers: {
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation',
-      },
+      headers: insertHeaders,
       body: JSON.stringify({
         slug: 'debug-test',
         destination_url: 'https://example.com',
@@ -54,7 +64,7 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const text = await res.text()
       return new Response(
-        `POST_ERROR\nstage=insert_response\nmessage=${text}`,
+        `POST_ERROR\nstage=fetch_response\nmessage=${text}`,
         { status: res.status, headers: { 'content-type': 'text/plain; charset=utf-8' } },
       )
     }
