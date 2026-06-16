@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   await req.json()
@@ -8,9 +7,18 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
 
-  const { data, error } = await getSupabaseAdmin()
-    .from('links')
-    .insert({
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+  const res = await fetch(`${supabaseUrl}/rest/v1/links`, {
+    method: 'POST',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify({
       slug: 'debug-test',
       destination_url: 'https://example.com',
       og_title: '',
@@ -21,10 +29,14 @@ export async function POST(req: NextRequest) {
       landing_image: '',
       button_text: 'Open',
       user_id: user.id,
-    })
-    .select('slug')
-    .single()
+    }),
+  })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ slug: data.slug }, { status: 201 })
+  if (!res.ok) {
+    const text = await res.text()
+    return Response.json({ error: text }, { status: res.status })
+  }
+
+  const inserted = await res.json()
+  return Response.json({ slug: inserted[0].slug }, { status: 201 })
 }
