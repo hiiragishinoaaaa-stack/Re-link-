@@ -18,8 +18,15 @@ function assertAsciiHeaders(headers: Record<string, string>) {
   }
 }
 
+const BUILD_MARKER = 'v20260616-A'
+
 export async function POST(req: NextRequest) {
   let stage = 'start'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(missing)'
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '(missing)'
+  const keyPreview = serviceKey.slice(0, 15)
+  const urlPreview = supabaseUrl.slice(0, 40)
+
   try {
     stage = 'req.json'
     await req.json()
@@ -30,8 +37,6 @@ export async function POST(req: NextRequest) {
     if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
 
     stage = 'insert'
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
     const insertHeaders: Record<string, string> = {
       'apikey': serviceKey,
@@ -44,8 +49,6 @@ export async function POST(req: NextRequest) {
     assertAsciiHeaders(insertHeaders)
 
     stage = 'fetch'
-    const keyPreview = serviceKey ? serviceKey.slice(0, 15) : '(undefined)'
-    const urlPreview = supabaseUrl ? supabaseUrl.slice(0, 40) : '(undefined)'
     const res = await fetch(`${supabaseUrl}/rest/v1/links`, {
       method: 'POST',
       headers: insertHeaders,
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const err = error as Error
     return new Response(
-      `POST_ERROR\nstage=${stage}\nmessage=${String(err?.message)}\nstack=${String(err?.stack)}`,
+      `POST_ERROR\nbuild=${BUILD_MARKER}\nstage=${stage}\nkey_prefix=${keyPreview}\nurl_prefix=${urlPreview}\nmessage=${String(err?.message)}\nstack=${String(err?.stack)}`,
       { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } },
     )
   }
