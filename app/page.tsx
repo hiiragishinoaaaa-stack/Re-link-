@@ -38,7 +38,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [copiedDirect, setCopiedDirect] = useState(false)
   const [copiedLanding, setCopiedLanding] = useState(false)
-  const [debug, setDebug] = useState<string[]>([])
 
   function set(key: keyof typeof EMPTY_FORM) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -58,52 +57,22 @@ export default function HomePage() {
     setCopiedDirect(false)
     setCopiedLanding(false)
 
-    const logs: string[] = []
     try {
-      const requestBody = JSON.stringify(form)
-      logs.push(`REQUEST BODY: ${requestBody}`)
-
-      let res: Response
-      try {
-        res = await fetch('/api/links', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: requestBody,
-        })
-      } catch (fetchErr) {
-        logs.push(`FETCH THREW: ${(fetchErr as Error).message}`)
-        setDebug(logs)
-        setError((fetchErr as Error).message)
-        return
-      }
-
-      logs.push(`STATUS: ${res.status} ${res.statusText}`)
-
-      const rawText = await res.text()
-      logs.push(`RAW BODY: ${rawText}`)
-
-      let data: Record<string, unknown>
-      try {
-        data = JSON.parse(rawText)
-      } catch (parseErr) {
-        logs.push(`JSON PARSE ERROR: ${(parseErr as Error).message}`)
-        setDebug(logs)
-        setError(`JSON parse failed: ${(parseErr as Error).message}`)
-        return
-      }
-
+      const res = await fetch('/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
       if (!res.ok) {
-        setError((data.error as string) ?? t.somethingWrong)
-        setDebug(logs)
+        setError(data.error === 'duplicate_slug' ? 'That slug is already taken.' : (data.error ?? t.somethingWrong))
         return
       }
-      setCreated({ slug: data.slug as string, hasLanding: !!(data.hasLanding) })
+      setCreated({ slug: data.slug, hasLanding: !!data.hasLanding })
       setForm(EMPTY_FORM)
-    } catch (err) {
-      logs.push(`OUTER CATCH: ${(err as Error).message}`)
-      setError((err as Error).message)
+    } catch {
+      setError(t.networkError)
     } finally {
-      setDebug(logs)
       setLoading(false)
     }
   }
@@ -291,12 +260,6 @@ export default function HomePage() {
             <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
               {error}
             </p>
-          )}
-
-          {debug.length > 0 && (
-            <pre className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-900 whitespace-pre-wrap break-all overflow-auto max-h-60">
-              {debug.join('\n')}
-            </pre>
           )}
 
           <button
