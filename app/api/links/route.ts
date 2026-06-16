@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
     assertAsciiHeaders(insertHeaders)
 
     stage = 'fetch'
+    const keyPreview = serviceKey ? serviceKey.slice(0, 15) : '(undefined)'
+    const urlPreview = supabaseUrl ? supabaseUrl.slice(0, 40) : '(undefined)'
     const res = await fetch(`${supabaseUrl}/rest/v1/links`, {
       method: 'POST',
       headers: insertHeaders,
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const text = await res.text()
       return new Response(
-        `POST_ERROR\nstage=fetch_response\nmessage=${text}`,
+        `POST_ERROR\nstage=fetch_response\nstatus=${res.status}\nkey_prefix=${keyPreview}\nurl_prefix=${urlPreview}\nmessage=${text}`,
         { status: res.status, headers: { 'content-type': 'text/plain; charset=utf-8' } },
       )
     }
