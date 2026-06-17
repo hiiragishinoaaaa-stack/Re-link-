@@ -1,15 +1,12 @@
 // ============================================================
-// X (Twitter) API Service
+// X (Twitter) API Service  ─  現在: MOCK実装
 // ------------------------------------------------------------
-// Current implementation: MOCK (no real API calls)
-// To switch to real X API:
-//   1. npm install twitter-api-v2
-//   2. Replace postTweet() with: client.v2.tweet(content)
-//   3. Replace getTweetMetrics() with: client.v2.tweetById(id, { 'tweet.fields': ['public_metrics'] })
-//   4. Replace verifyCredentials() with: client.v1.verifyCredentials()
+// 本番X APIへの差し替え方法:
+//   npm install twitter-api-v2
+//   各メソッド内のMOCKコメントを参照して実装を入れ替える
 // ============================================================
 
-export interface PostResult {
+export interface ActionResult {
   success: boolean
   tweetId?: string
   error?: string
@@ -39,26 +36,42 @@ export class XService {
     this.credentials = credentials
   }
 
-  // MOCK → Replace with: await client.v2.tweet(content)
-  async postTweet(content: string): Promise<PostResult> {
-    console.log(`[XService MOCK] postTweet: "${content.slice(0, 60)}..."`)
+  // MOCK → 本番: await client.v2.tweet(content)
+  async postTweet(content: string): Promise<ActionResult> {
+    console.log(`[XService MOCK] postTweet: "${content.slice(0, 50)}"`)
     await delay(300)
-
-    if (Math.random() < 0.05) {
-      return { success: false, error: 'Rate limit exceeded (mock simulation)' }
-    }
-
-    return {
-      success: true,
-      tweetId: `mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    }
+    if (Math.random() < 0.05) return { success: false, error: 'Rate limit exceeded (mock)' }
+    return { success: true, tweetId: mockId('tweet') }
   }
 
-  // MOCK → Replace with: client.v2.tweetById(tweetId, { 'tweet.fields': ['public_metrics'] })
+  // MOCK → 本番: await client.v2.like(userId, tweetId)
+  async likeTweet(tweetId: string): Promise<ActionResult> {
+    console.log(`[XService MOCK] likeTweet: ${tweetId}`)
+    await delay(250)
+    if (Math.random() < 0.05) return { success: false, error: 'Rate limit exceeded (mock)' }
+    return { success: true }
+  }
+
+  // MOCK → 本番: await client.v2.retweet(userId, tweetId)
+  async retweet(tweetId: string): Promise<ActionResult> {
+    console.log(`[XService MOCK] retweet: ${tweetId}`)
+    await delay(250)
+    if (Math.random() < 0.05) return { success: false, error: 'Rate limit exceeded (mock)' }
+    return { success: true }
+  }
+
+  // MOCK → 本番: await client.v2.reply(content, tweetId)
+  async replyToTweet(tweetId: string, content: string): Promise<ActionResult> {
+    console.log(`[XService MOCK] reply: ${tweetId} → "${content.slice(0, 40)}"`)
+    await delay(350)
+    if (!content.trim()) return { success: false, error: '返信内容が空です' }
+    return { success: true, tweetId: mockId('reply') }
+  }
+
+  // MOCK → 本番: client.v2.tweetById(id, { 'tweet.fields': ['public_metrics'] })
   async getTweetMetrics(tweetId: string): Promise<TweetMetrics> {
     console.log(`[XService MOCK] getTweetMetrics: ${tweetId}`)
     await delay(200)
-
     return {
       impressions: Math.floor(Math.random() * 15000),
       likes: Math.floor(Math.random() * 600),
@@ -67,10 +80,10 @@ export class XService {
     }
   }
 
-  // MOCK → Replace with: await client.v1.verifyCredentials()
+  // MOCK → 本番: await client.v1.verifyCredentials()
   async verifyCredentials(): Promise<{ valid: boolean; username?: string }> {
-    await delay(400)
-    return { valid: true, username: 'mock_user' }
+    await delay(300)
+    return { valid: true, username: 'mock_verified_user' }
   }
 }
 
@@ -81,11 +94,15 @@ export function createXService(account: {
   access_secret?: string | null
 }): XService {
   return new XService({
-    apiKey: account.api_key || 'mock',
-    apiSecret: account.api_secret || 'mock',
-    accessToken: account.access_token || 'mock',
+    apiKey:       account.api_key       || 'mock',
+    apiSecret:    account.api_secret    || 'mock',
+    accessToken:  account.access_token  || 'mock',
     accessSecret: account.access_secret || 'mock',
   })
+}
+
+function mockId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
 function delay(ms: number): Promise<void> {
