@@ -1,8 +1,34 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+
 export async function GET() {
-  return Response.json([])
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
+
+  const isAdmin = ADMIN_EMAIL && user.email === ADMIN_EMAIL
+
+  if (isAdmin) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/links?select=*&order=created_at.desc`,
+      { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } },
+    )
+    if (!res.ok) return Response.json({ error: await res.text() }, { status: res.status })
+    return Response.json(await res.json())
+  }
+
+  const { data, error } = await supabase
+    .from('links')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data)
 }
 
 export async function POST(req: NextRequest) {
@@ -34,6 +60,7 @@ export async function POST(req: NextRequest) {
         landing_description: body.landing_description || null,
         landing_image: body.landing_image || null,
         button_text: body.button_text || null,
+        redirect_method: body.redirect_method || 'js_replace',
         user_id: user.id,
       }),
     })

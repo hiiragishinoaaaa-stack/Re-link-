@@ -1,5 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
+export type RedirectMethod =
+  | 'js_replace'
+  | 'js_href'
+  | 'normal_link'
+  | 'meta_refresh'
+  | 'android_intent'
+  | 'redirect_302'
+
 export type Link = {
   id: string
   slug: string
@@ -11,7 +19,9 @@ export type Link = {
   landing_description: string | null
   landing_image: string | null
   button_text: string | null
+  redirect_method: RedirectMethod
   click_count: number
+  view_count: number
   created_at: string
   user_id: string | null
 }

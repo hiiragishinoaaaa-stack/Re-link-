@@ -1,33 +1,52 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getSupabaseAdmin } from '@/lib/supabase'
 import LandingClient from './LandingClient'
+import type { RedirectMethod } from '@/lib/supabase'
 
 type Props = { params: Promise<{ slug: string }> }
 
+async function fetchLink(slug: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/links?slug=eq.${encodeURIComponent(slug)}&limit=1`,
+    {
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
+      cache: 'no-store',
+    },
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  return data[0] ?? null
+}
+
+async function rpc(fn: string, body: Record<string, unknown>) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const { data } = await getSupabaseAdmin()
-    .from('links')
-    .select('og_title, og_description, og_image, landing_title')
-    .eq('slug', slug)
-    .single()
+  const link = await fetchLink(slug)
+  if (!link) return {}
 
-  if (!data) return {}
-
-  // OG fields take precedence; fall back to landing_title for the page <title>
-  const title = data.og_title ?? data.landing_title ?? undefined
-  const description = data.og_description ?? undefined
-  const image = data.og_image ?? undefined
+  const title = link.og_title ?? link.landing_title ?? undefined
+  const description = link.og_description ?? undefined
+  const image = link.og_image ?? undefined
 
   return {
     title,
     description,
-    openGraph: {
-      title,
-      description,
-      images: image ? [image] : [],
-    },
+    openGraph: { title, description, images: image ? [image] : [] },
     twitter: {
       card: image ? 'summary_large_image' : 'summary',
       title,
@@ -37,32 +56,49 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-// Server action: called by the client on button click.
-// Increments click count atomically, then returns the destination URL.
-// The destination is resolved at click time — it is never embedded in the page HTML.
 async function resolveDestination(id: string): Promise<string> {
   'use server'
-  const supabase = getSupabaseAdmin()
-  await supabase.rpc('increment_click_count', { link_id: id })
-  const { data } = await supabase
-    .from('links')
-    .select('destination_url')
-    .eq('id', id)
-    .single()
-  return data?.destination_url ?? ''
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const headers = {
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
+    'Content-Type': 'application/json',
+  }
+  await fetch(`${supabaseUrl}/rest/v1/rpc/increment_click_count`, {
+    method: 'POST', headers, body: JSON.stringify({ link_id: id }),
+  })
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/links?id=eq.${id}&select=destination_url&limit=1`,
+    { headers },
+  )
+  const data = await res.json()
+  return data[0]?.destination_url ?? ''
 }
 
 export default async function GoPage({ params }: Props) {
   const { slug } = await params
-  const { data: link } = await getSupabaseAdmin()
-    .from('links')
-    .select('id, landing_title, landing_description, landing_image, button_text')
-    .eq('slug', slug)
-    .single()
-
+  const link = await fetchLink(slug)
   if (!link) notFound()
 
-  // Bind the link id into the server action so the client receives a zero-argument function.
+  const method: RedirectMethod = link.redirect_method ?? 'js_replace'
+
+  // Every page load counts as a view
+  await rpc('increment_view_count', { link_id: link.id })
+
+  // redirect_302: skip landing page entirely (click = view)
+  if (method === 'redirect_302') {
+    await rpc('increment_click_count', { link_id: link.id })
+    redirect(link.destination_url)
+  }
+
+  // meta_refresh: auto-redirect on load (click = view, destination URL exposed to client)
+  let autoRedirectUrl = ''
+  if (method === 'meta_refresh') {
+    await rpc('increment_click_count', { link_id: link.id })
+    autoRedirectUrl = link.destination_url
+  }
+
   const action = resolveDestination.bind(null, link.id)
 
   return (
@@ -71,6 +107,8 @@ export default async function GoPage({ params }: Props) {
       description={link.landing_description ?? ''}
       image={link.landing_image ?? ''}
       buttonText={link.button_text ?? 'Continue'}
+      redirectMethod={method}
+      autoRedirectUrl={autoRedirectUrl}
       action={action}
     />
   )

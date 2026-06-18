@@ -77,6 +77,7 @@ export default function AdminPage() {
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
   const totalClicks = links.reduce((sum, l) => sum + l.click_count, 0)
+  const totalViews = links.reduce((sum, l) => sum + (l.view_count ?? 0), 0)
   const topSlug = byClicks[0]?.slug ?? null
 
   return (
@@ -122,8 +123,9 @@ export default function AdminPage() {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard label={t.totalLinks} value={links.length} />
+          <StatCard label={t.totalViews} value={totalViews} />
           <StatCard label={t.totalClicks} value={totalClicks} />
           <StatCard label={t.topLink} value={topSlug ? `/${topSlug}` : '—'} mono />
         </div>
@@ -161,7 +163,10 @@ export default function AdminPage() {
                     <th className="px-4 py-3 text-left font-semibold text-gray-600">{t.colDestination}</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colOgTitle}</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colLanding}</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colMethod}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600">{t.colViews}</th>
                     <th className="px-4 py-3 text-right font-semibold text-gray-600">{t.colClicks}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-600">{t.colCtr}</th>
                     <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">{t.colCreated}</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -209,8 +214,21 @@ export default function AdminPage() {
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-600">
+                          {link.redirect_method ?? 'js_replace'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">
+                        {link.view_count ?? 0}
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
                         {link.click_count}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-500">
+                        {(link.view_count ?? 0) > 0
+                          ? `${Math.round((link.click_count / (link.view_count ?? 1)) * 100)}%`
+                          : '—'}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-400 whitespace-nowrap">
                         {new Date(link.created_at).toLocaleDateString()}

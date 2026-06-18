@@ -14,6 +14,15 @@ type CreatedLink = {
   hasLanding: boolean
 }
 
+const REDIRECT_METHODS = [
+  { value: 'js_replace',      labelKey: 'methodJsReplace'      },
+  { value: 'js_href',         labelKey: 'methodJsHref'         },
+  { value: 'normal_link',     labelKey: 'methodNormalLink'     },
+  { value: 'meta_refresh',    labelKey: 'methodMetaRefresh'    },
+  { value: 'android_intent',  labelKey: 'methodAndroidIntent'  },
+  { value: 'redirect_302',    labelKey: 'methodRedirect302'    },
+] as const
+
 const EMPTY_FORM = {
   slug: '',
   destination_url: '',
@@ -24,6 +33,7 @@ const EMPTY_FORM = {
   landing_description: '',
   landing_image: '',
   button_text: '',
+  redirect_method: 'js_replace',
 }
 
 const BASE_URL = 'https://re-link-ten.vercel.app'
@@ -202,6 +212,24 @@ export default function HomePage() {
               onChange={set('destination_url')}
               className={inputCls}
             />
+          </div>
+
+          {/* Redirect method */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.redirectMethod}
+            </label>
+            <select
+              value={form.redirect_method}
+              onChange={e => setForm(f => ({ ...f, redirect_method: e.target.value }))}
+              className={inputCls}
+            >
+              {REDIRECT_METHODS.map(m => (
+                <option key={m.value} value={m.value}>
+                  {t[m.labelKey]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* OG section */}
