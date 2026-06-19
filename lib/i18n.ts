@@ -129,7 +129,7 @@ export const translations = {
     // Redirect method selector
     redirectMethod: '遷移方式',
     methodJsReplace: 'JS replace（デフォルト）',
-    methodJsHref: 'JS href',
+    methodJsHref: 'TikTok用リンク',
     methodNormalLink: '通常リンク',
     methodMetaRefresh: 'メタリフレッシュ（自動）',
     methodAndroidIntent: 'Android Intent（TikTok Lite）',
@@ -274,7 +274,7 @@ export const translations = {
     // Redirect method selector
     redirectMethod: 'Redirect method',
     methodJsReplace: 'JS replace (default)',
-    methodJsHref: 'JS href',
+    methodJsHref: 'TikTok link',
     methodNormalLink: 'Normal link',
     methodMetaRefresh: 'Meta refresh (auto)',
     methodAndroidIntent: 'Android Intent (TikTok Lite)',

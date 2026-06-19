@@ -15,12 +15,8 @@ type CreatedLink = {
 }
 
 const REDIRECT_METHODS = [
-  { value: 'js_replace',      labelKey: 'methodJsReplace'      },
-  { value: 'js_href',         labelKey: 'methodJsHref'         },
-  { value: 'normal_link',     labelKey: 'methodNormalLink'     },
-  { value: 'meta_refresh',    labelKey: 'methodMetaRefresh'    },
-  { value: 'android_intent',  labelKey: 'methodAndroidIntent'  },
-  { value: 'redirect_302',    labelKey: 'methodRedirect302'    },
+  { value: 'normal_link', labelKey: 'methodNormalLink' },
+  { value: 'js_href',     labelKey: 'methodJsHref'     },
 ] as const
 
 const EMPTY_FORM = {
@@ -33,7 +29,7 @@ const EMPTY_FORM = {
   landing_description: '',
   landing_image: '',
   button_text: '',
-  redirect_method: 'js_replace',
+  redirect_method: 'js_href',
 }
 
 const BASE_URL = 'https://re-link-ten.vercel.app'
