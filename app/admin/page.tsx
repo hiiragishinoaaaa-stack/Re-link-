@@ -234,13 +234,21 @@ export default function AdminPage() {
                         {new Date(link.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(link.id)}
-                          disabled={deletingId === link.id}
-                          className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                        >
-                          {deletingId === link.id ? t.deleting : t.delete}
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/admin/links/${link.id}`}
+                            className="rounded-lg px-3 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          >
+                            詳細
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(link.id)}
+                            disabled={deletingId === link.id}
+                            className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                          >
+                            {deletingId === link.id ? t.deleting : t.delete}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
