@@ -16,6 +16,10 @@ function buildAndroidIntent(url: string): string {
   }
 }
 
+function isTikTokDest(url: string): boolean {
+  try { return new URL(url).hostname.endsWith('tiktok.com') || new URL(url).hostname.endsWith('tiktokv.com') } catch { return false }
+}
+
 type Props = {
   title: string
   description: string
@@ -23,21 +27,10 @@ type Props = {
   buttonText: string
   redirectMethod: RedirectMethod
   autoRedirectUrl: string
-  // Pre-loaded destination URL — used by js_href to render a real <a> tag so
-  // iOS Safari treats the tap as a user-gesture link click, which triggers
-  // Universal Links and opens TikTok Lite directly without a web cushion.
   destinationUrl: string
   action: () => Promise<string>
   trackClick: () => Promise<void>
 }
-
-const BTN_CLS = `
-  w-full rounded-xl bg-indigo-600 px-6 py-4
-  text-base font-semibold text-white text-center
-  hover:bg-indigo-700 active:bg-indigo-800
-  disabled:opacity-60 disabled:cursor-not-allowed
-  transition-colors flex items-center justify-center gap-2
-`
 
 function Spinner() {
   return (
@@ -55,33 +48,35 @@ export default function LandingClient({
 }: Props) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
 
-  // meta_refresh: navigate immediately on mount (click already counted server-side)
+  useEffect(() => {
+    setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent))
+  }, [])
+
   useEffect(() => {
     if (redirectMethod === 'meta_refresh' && autoRedirectUrl) {
       window.location.replace(autoRedirectUrl)
     }
   }, [redirectMethod, autoRedirectUrl])
 
-  // ── js_href: render a real <a> tag so the user's finger tap is treated as
-  //    a native link gesture by iOS Safari.  This is what triggers Universal
-  //    Links and opens TikTok Lite directly (vs window.location.href which iOS
-  //    treats as programmatic JS navigation and does NOT trigger UL).
-  //    Android intercepts the click to inject intent:// instead.
+  // iOS Safari cannot trigger Universal Links via ANY JavaScript navigation
+  // (window.location.href, <a>.click(), window.open — all blocked by iOS 13+).
+  // The ONLY reliable method from within Safari is the Smart App Banner "開く"
+  // button, which iOS processes outside the browser's navigation sandbox.
+  // We render a prominent hint pointing users to that banner.
+  const showIOSBannerHint = isIOS && redirectMethod === 'js_href' && isTikTokDest(destinationUrl)
+
   function handleNativeClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    const isAndroid = /Android/i.test(navigator.userAgent)
-    if (isAndroid) {
+    if (/Android/i.test(navigator.userAgent)) {
       e.preventDefault()
       trackClick().catch(() => {})
       window.location.href = buildAndroidIntent(destinationUrl)
       return
     }
-    // iOS / Desktop: fire tracking async, let native navigation proceed
     trackClick().catch(() => {})
-    // no preventDefault — browser handles href, Universal Links can fire
   }
 
-  // ── Other redirect methods: async button → server action returns URL
   async function handleClick() {
     if (redirectMethod === 'meta_refresh') {
       if (autoRedirectUrl) window.location.replace(autoRedirectUrl)
@@ -124,6 +119,18 @@ export default function LandingClient({
 
       <div className="w-full max-w-sm flex flex-col items-center">
 
+        {/* iOS Smart App Banner hint — shown above content so users look up */}
+        {showIOSBannerHint && (
+          <div className="w-full mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5 text-center">
+            <p className="text-sm font-bold text-indigo-700">
+              ↑ 上の「開く」をタップ
+            </p>
+            <p className="text-xs text-indigo-500 mt-0.5 leading-relaxed">
+              Safari 上部のバナーから TikTok Lite が1タップで起動します
+            </p>
+          </div>
+        )}
+
         {image && (
           <div className="w-full mb-8 rounded-2xl overflow-hidden shadow-sm bg-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -143,20 +150,29 @@ export default function LandingClient({
         )}
 
         {redirectMethod === 'js_href' && destinationUrl ? (
-          // Native <a> tag — iOS Safari recognises a direct finger-tap on an anchor
-          // as a user-gesture link click, which is required to trigger Universal Links.
           <a
             href={destinationUrl}
             onClick={handleNativeClick}
-            className={`${BTN_CLS} ${marginTop}`}
+            className={`
+              w-full rounded-xl px-6 py-4
+              text-base font-semibold text-center
+              transition-colors flex items-center justify-center gap-2
+              ${showIOSBannerHint
+                // iOS TikTok: secondary style — main action is the Smart App Banner
+                ? 'border border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
+                // Android / other: primary style
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
+              }
+              ${marginTop}
+            `}
           >
-            {buttonText || t.buttonDefault}
+            {showIOSBannerHint ? 'ブラウザで開く' : (buttonText || t.buttonDefault)}
           </a>
         ) : (
           <button
             onClick={handleClick}
             disabled={loading}
-            className={`${BTN_CLS} ${marginTop}`}
+            className={`w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 ${marginTop}`}
           >
             {loading ? <><Spinner />{t.buttonLoading}</> : (buttonText || t.buttonDefault)}
           </button>
