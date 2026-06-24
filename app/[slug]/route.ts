@@ -16,12 +16,11 @@ export async function GET(
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
   const res = await fetch(
     `${supabaseUrl}/rest/v1/links?slug=eq.${encodeURIComponent(slug)}&select=*&limit=1`,
-    { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` }, cache: 'no-store' },
+    { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }, cache: 'no-store' },
   )
 
   if (!res.ok) return new NextResponse('Not Found', { status: 404 })

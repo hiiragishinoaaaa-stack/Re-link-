@@ -6,7 +6,7 @@ import type { RedirectMethod } from '@/lib/supabase'
 type Props = { params: Promise<{ slug: string }> }
 
 function supabaseHeaders() {
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
   return { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }
 }
 
