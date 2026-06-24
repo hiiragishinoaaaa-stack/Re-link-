@@ -77,6 +77,7 @@ export default function AdminPage() {
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
   const totalClicks = links.reduce((sum, l) => sum + l.click_count, 0)
+  const totalViews = links.reduce((sum, l) => sum + (l.view_count ?? 0), 0)
   const topSlug = byClicks[0]?.slug ?? null
 
   return (
@@ -122,8 +123,9 @@ export default function AdminPage() {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard label={t.totalLinks} value={links.length} />
+          <StatCard label={t.totalViews} value={totalViews} />
           <StatCard label={t.totalClicks} value={totalClicks} />
           <StatCard label={t.topLink} value={topSlug ? `/${topSlug}` : '—'} mono />
         </div>
@@ -159,69 +161,55 @@ export default function AdminPage() {
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colShortLink}</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-600">{t.colDestination}</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colOgTitle}</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{t.colLanding}</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-600">{t.colClicks}</th>
                     <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">{t.colCreated}</th>
-                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3 w-24"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {byDate.map(link => (
-                    <tr key={link.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <a
-                          href={`${BASE_URL}/${link.slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-indigo-600 hover:underline"
-                        >
+                    <tr
+                      key={link.id}
+                      className="hover:bg-indigo-50/40 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/admin/links/${link.id}`)}
+                    >
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className="font-mono font-semibold text-indigo-600">
                           /{link.slug}
-                        </a>
+                        </span>
                       </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <a
-                          href={link.destination_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-gray-600 hover:underline truncate block"
+                      <td className="px-4 py-4 max-w-[240px]">
+                        <span
+                          className="text-gray-500 truncate block text-xs"
                           title={link.destination_url}
                         >
-                          {link.destination_url}
-                        </a>
+                          {(() => {
+                            try { return new URL(link.destination_url).hostname } catch { return link.destination_url }
+                          })()}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
-                        {link.og_title ?? <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {link.landing_title ? (
-                          <a
-                            href={`${BASE_URL}/go/${link.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-                            title={link.landing_title}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                            /go/{link.slug}
-                          </a>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {link.click_count}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-400 whitespace-nowrap">
+                      <td className="px-4 py-4 text-right text-gray-400 whitespace-nowrap text-xs">
                         {new Date(link.created_at).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td
+                        className="px-4 py-4 text-right"
+                        onClick={e => e.stopPropagation()}
+                      >
                         <button
                           onClick={() => handleDelete(link.id)}
                           disabled={deletingId === link.id}
-                          className="rounded-lg px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                          title={t.delete}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
                         >
-                          {deletingId === link.id ? t.deleting : t.delete}
+                          {deletingId === link.id ? (
+                            <span className="text-xs">…</span>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14H6L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                              <path d="M9 6V4h6v2"/>
+                            </svg>
+                          )}
                         </button>
                       </td>
                     </tr>

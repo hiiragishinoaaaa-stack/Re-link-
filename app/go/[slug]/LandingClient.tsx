@@ -80,6 +80,7 @@ export default function LandingClient({
   }, [redirectMethod, autoRedirectUrl])
 
   async function handleClick() {
+    // meta_refresh button is fallback only — URL already resolved server-side
     if (redirectMethod === 'meta_refresh') {
       if (autoRedirectUrl) window.location.replace(autoRedirectUrl)
       return

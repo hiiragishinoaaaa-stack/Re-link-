@@ -1,155 +1,87 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase'
+import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
-async function getAuthUser() {
+export async function GET() {
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  return user
-}
-
-export async function GET() {
-  const user = await getAuthUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+  if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
 
   const isAdmin = ADMIN_EMAIL && user.email === ADMIN_EMAIL
 
-  // Admin sees all links; regular users see only their own.
-  const db = isAdmin ? getSupabaseAdmin() : await createSupabaseServerClient()
-  const query = db.from('links').select('*').order('created_at', { ascending: false })
-  const { data, error } = isAdmin
-    ? await query
-    : await query.eq('user_id', user.id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-// Slugs that must never be registered.
-const RESERVED_SLUGS = new Set([
-  'admin', 'api', 'auth', 'login', 'signup', 'go',
-  '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml',
-])
-
-// Validate protocol and return the URL's normalized, percent-encoded href.
-// Returns null when the URL is invalid or uses a non-http(s) scheme.
-function normalizeUrl(raw: string): string | null {
-  try {
-    const parsed = new URL(raw)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-    return parsed.href
-  } catch {
-    return null
+  if (isAdmin) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/links?select=*&order=created_at.desc`,
+      { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } },
+    )
+    if (!res.ok) return Response.json({ error: await res.text() }, { status: res.status })
+    return Response.json(await res.json())
   }
+
+  const { data, error } = await supabase
+    .from('links')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data)
 }
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[links POST] step=start')
+    const body = await req.json()
 
-    const user = await getAuthUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-    console.log('[links POST] step=auth_ok')
+    const supabase = await createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401 })
 
-    let body: Record<string, unknown>
-    try {
-      body = await req.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
-    }
-    console.log('[links POST] step=body_parsed')
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-    const {
-      slug, destination_url,
-      og_title, og_description, og_image,
-      landing_title, landing_description, landing_image, button_text,
-    } = body
-
-    if (!slug || typeof slug !== 'string') {
-      return NextResponse.json({ error: 'slug is required.' }, { status: 400 })
-    }
-    if (!destination_url || typeof destination_url !== 'string') {
-      return NextResponse.json({ error: 'destination_url is required.' }, { status: 400 })
-    }
-
-    // Slug: ASCII only (letters, numbers, hyphens, underscores).
-    const cleanSlug = slug.trim().toLowerCase()
-    if (!/^[a-zA-Z0-9-_]+$/.test(cleanSlug)) {
-      return NextResponse.json(
-        { error: 'Slug may only contain letters, numbers, hyphens, and underscores.' },
-        { status: 400 },
-      )
-    }
-    if (RESERVED_SLUGS.has(cleanSlug)) {
-      return NextResponse.json({ error: 'That slug is reserved.' }, { status: 400 })
-    }
-
-    // URLs: validate scheme and percent-encode via new URL().
-    const cleanDest = normalizeUrl(destination_url.trim())
-    if (!cleanDest) {
-      return NextResponse.json(
-        { error: 'destination_url must start with http:// or https://.' },
-        { status: 400 },
-      )
-    }
-
-    const rawOgImage = typeof og_image === 'string' ? og_image.trim() : ''
-    const cleanOgImage = rawOgImage ? normalizeUrl(rawOgImage) : null
-    if (rawOgImage && !cleanOgImage) {
-      return NextResponse.json(
-        { error: 'og_image must be a valid http:// or https:// URL.' },
-        { status: 400 },
-      )
-    }
-
-    const rawLandingImage = typeof landing_image === 'string' ? landing_image.trim() : ''
-    const cleanLandingImage = rawLandingImage ? normalizeUrl(rawLandingImage) : null
-    if (rawLandingImage && !cleanLandingImage) {
-      return NextResponse.json(
-        { error: 'landing_image must be a valid http:// or https:// URL.' },
-        { status: 400 },
-      )
-    }
-
-    console.log('[links POST] step=before_insert')
-    const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
-      .from('links')
-      .insert({
-        slug: cleanSlug,
-        destination_url: cleanDest,
-        og_title: typeof og_title === 'string' ? og_title.trim() || null : null,
-        og_description: typeof og_description === 'string' ? og_description.trim() || null : null,
-        og_image: cleanOgImage || null,
-        landing_title: typeof landing_title === 'string' ? landing_title.trim() || null : null,
-        landing_description: typeof landing_description === 'string' ? landing_description.trim() || null : null,
-        landing_image: cleanLandingImage || null,
-        button_text: typeof button_text === 'string' ? button_text.trim() || null : null,
+    const res = await fetch(`${supabaseUrl}/rest/v1/links`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        slug: body.slug,
+        destination_url: body.destination_url,
+        og_title: body.og_title || null,
+        og_description: body.og_description || null,
+        og_image: body.og_image || null,
+        landing_title: body.landing_title || null,
+        landing_description: body.landing_description || null,
+        landing_image: body.landing_image || null,
+        button_text: body.button_text || null,
+        redirect_method: body.redirect_method || 'js_href',
         user_id: user.id,
-      })
-      .select('id, slug, landing_title')
-      .single()
+      }),
+    })
 
-    if (error) {
-      console.log('[links POST] step=insert_error code=' + error.code)
-      if (error.code === '23505') {
-        return NextResponse.json({ error: 'That slug is already taken.' }, { status: 409 })
+    if (!res.ok) {
+      const text = await res.text()
+      let parsed: { code?: string } = {}
+      try { parsed = JSON.parse(text) } catch { /* ignore */ }
+      if (parsed.code === '23505') {
+        return Response.json({ error: 'duplicate_slug' }, { status: 409 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return Response.json({ error: text }, { status: res.status })
     }
 
-    const hasLanding = data.landing_title != null
-    console.log('[links POST] step=insert_ok hasLanding=' + hasLanding)
+    const inserted = await res.json()
+    return Response.json(
+      { id: inserted[0].id, slug: inserted[0].slug, hasLanding: !!(inserted[0].landing_title) },
+      { status: 201 },
+    )
 
-    const res = NextResponse.json({ id: data.id, slug: data.slug, hasLanding }, { status: 201 })
-    console.log('[links POST] step=response_built')
-    return res
-
-  } catch (err: unknown) {
-    const stack = err instanceof Error ? (err.stack ?? err.message) : String(err)
-    console.error('[links POST] CRASH\n' + stack)
-    return NextResponse.json({ error: 'Internal server error.' }, { status: 500 })
+  } catch (error) {
+    return Response.json({ error: String((error as Error).message) }, { status: 500 })
   }
 }

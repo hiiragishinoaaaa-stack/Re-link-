@@ -14,6 +14,11 @@ type CreatedLink = {
   hasLanding: boolean
 }
 
+const REDIRECT_METHODS = [
+  { value: 'normal_link', labelKey: 'methodNormalLink' },
+  { value: 'js_href',     labelKey: 'methodJsHref'     },
+] as const
+
 const EMPTY_FORM = {
   slug: '',
   destination_url: '',
@@ -24,6 +29,7 @@ const EMPTY_FORM = {
   landing_description: '',
   landing_image: '',
   button_text: '',
+  redirect_method: 'js_href',
 }
 
 const BASE_URL = 'https://re-link-ten.vercel.app'
@@ -65,7 +71,7 @@ export default function HomePage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? t.somethingWrong)
+        setError(data.error === 'duplicate_slug' ? 'That slug is already taken.' : (data.error ?? t.somethingWrong))
         return
       }
       setCreated({ slug: data.slug, hasLanding: !!data.hasLanding })
@@ -204,6 +210,24 @@ export default function HomePage() {
             />
           </div>
 
+          {/* Redirect method */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.redirectMethod}
+            </label>
+            <select
+              value={form.redirect_method}
+              onChange={e => setForm(f => ({ ...f, redirect_method: e.target.value }))}
+              className={inputCls}
+            >
+              {REDIRECT_METHODS.map(m => (
+                <option key={m.value} value={m.value}>
+                  {t[m.labelKey]}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* OG section */}
           <hr className="border-gray-100" />
           <SectionLabel>{t.ogSection}</SectionLabel>
@@ -276,6 +300,7 @@ export default function HomePage() {
             {t.adminLink}
           </Link>
         </p>
+
       </div>
     </main>
   )
