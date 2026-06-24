@@ -16,42 +16,15 @@ function buildAndroidIntent(url: string): string {
   }
 }
 
-// TikTok Lite iOS URL scheme — bypasses the web cushion page when app is installed
-function buildIOSTikTokScheme(url: string): string | null {
-  try {
-    const u = new URL(url)
-    if (u.hostname.endsWith('tiktok.com') || u.hostname.endsWith('tiktokv.com')) {
-      return 'snssdk1180://' + u.host + u.pathname + u.search + u.hash
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-// Platform-aware redirect: Android → intent://, iOS → URL scheme w/ fallback, other → js_href
+// Platform-aware redirect:
+// Android → intent:// (explicit package, bypasses browser chooser)
+// iOS     → window.location.href; Smart App Banner in <head> handles app-open on iOS Safari
+// Other   → window.location.href
 function smartRedirect(url: string) {
-  const ua = navigator.userAgent
-  const isAndroid = /Android/i.test(ua)
-  const isIOS = /iPhone|iPad|iPod/i.test(ua)
-
-  if (isAndroid) {
+  if (/Android/i.test(navigator.userAgent)) {
     window.location.href = buildAndroidIntent(url)
     return
   }
-
-  if (isIOS) {
-    const schemeUrl = buildIOSTikTokScheme(url)
-    if (schemeUrl) {
-      window.location.href = schemeUrl
-      // If the app didn't open (scheme unhandled), fall back to HTTPS after 1.5 s
-      setTimeout(() => {
-        if (!document.hidden) window.location.href = url
-      }, 1500)
-      return
-    }
-  }
-
   window.location.href = url
 }
 

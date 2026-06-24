@@ -20,6 +20,15 @@ async function fetchLink(slug: string) {
   return data[0] ?? null
 }
 
+function isTikTokUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname
+    return h.endsWith('tiktok.com') || h.endsWith('tiktokv.com')
+  } catch {
+    return false
+  }
+}
+
 async function rpc(fn: string, body: Record<string, unknown>) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -43,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = link.og_description ?? undefined
   const image = link.og_image ?? undefined
 
-  return {
+  const meta: Metadata = {
     title,
     description,
     openGraph: { title, description, images: image ? [image] : [] },
@@ -54,6 +63,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: image ? [image] : [],
     },
   }
+
+  // iOS Safari Smart App Banner — shows "開く" button at top of page for TikTok Lite links
+  if (link.destination_url && isTikTokUrl(link.destination_url)) {
+    meta.other = {
+      'apple-itunes-app': `app-id=1491937174, app-argument=${link.destination_url}`,
+    }
+  }
+
+  return meta
 }
 
 async function resolveDestination(id: string): Promise<string> {
