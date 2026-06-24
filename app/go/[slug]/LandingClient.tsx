@@ -16,18 +16,6 @@ function buildAndroidIntent(url: string): string {
   }
 }
 
-// Platform-aware redirect:
-// Android → intent:// (explicit package, bypasses browser chooser)
-// iOS     → window.location.href; Smart App Banner in <head> handles app-open on iOS Safari
-// Other   → window.location.href
-function smartRedirect(url: string) {
-  if (/Android/i.test(navigator.userAgent)) {
-    window.location.href = buildAndroidIntent(url)
-    return
-  }
-  window.location.href = url
-}
-
 type Props = {
   title: string
   description: string
@@ -35,12 +23,35 @@ type Props = {
   buttonText: string
   redirectMethod: RedirectMethod
   autoRedirectUrl: string
+  // Pre-loaded destination URL — used by js_href to render a real <a> tag so
+  // iOS Safari treats the tap as a user-gesture link click, which triggers
+  // Universal Links and opens TikTok Lite directly without a web cushion.
+  destinationUrl: string
   action: () => Promise<string>
+  trackClick: () => Promise<void>
+}
+
+const BTN_CLS = `
+  w-full rounded-xl bg-indigo-600 px-6 py-4
+  text-base font-semibold text-white text-center
+  hover:bg-indigo-700 active:bg-indigo-800
+  disabled:opacity-60 disabled:cursor-not-allowed
+  transition-colors flex items-center justify-center gap-2
+`
+
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
 }
 
 export default function LandingClient({
   title, description, image, buttonText,
-  redirectMethod, autoRedirectUrl, action,
+  redirectMethod, autoRedirectUrl, destinationUrl,
+  action, trackClick,
 }: Props) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
@@ -52,22 +63,35 @@ export default function LandingClient({
     }
   }, [redirectMethod, autoRedirectUrl])
 
+  // ── js_href: render a real <a> tag so the user's finger tap is treated as
+  //    a native link gesture by iOS Safari.  This is what triggers Universal
+  //    Links and opens TikTok Lite directly (vs window.location.href which iOS
+  //    treats as programmatic JS navigation and does NOT trigger UL).
+  //    Android intercepts the click to inject intent:// instead.
+  function handleNativeClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    const isAndroid = /Android/i.test(navigator.userAgent)
+    if (isAndroid) {
+      e.preventDefault()
+      trackClick().catch(() => {})
+      window.location.href = buildAndroidIntent(destinationUrl)
+      return
+    }
+    // iOS / Desktop: fire tracking async, let native navigation proceed
+    trackClick().catch(() => {})
+    // no preventDefault — browser handles href, Universal Links can fire
+  }
+
+  // ── Other redirect methods: async button → server action returns URL
   async function handleClick() {
-    // meta_refresh button is fallback only — URL already resolved server-side
     if (redirectMethod === 'meta_refresh') {
       if (autoRedirectUrl) window.location.replace(autoRedirectUrl)
       return
     }
-
     setLoading(true)
     try {
       const url = await action()
       if (!url) return
-
       switch (redirectMethod) {
-        case 'js_href':
-          smartRedirect(url)
-          break
         case 'normal_link': {
           const a = document.createElement('a')
           a.href = url
@@ -90,6 +114,7 @@ export default function LandingClient({
   }
 
   const hasContent = title || description
+  const marginTop = hasContent || image ? 'mt-8' : ''
 
   return (
     <main className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
@@ -102,69 +127,40 @@ export default function LandingClient({
         {image && (
           <div className="w-full mb-8 rounded-2xl overflow-hidden shadow-sm bg-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image}
-              alt=""
-              className="w-full object-cover"
-              style={{ maxHeight: '320px' }}
-            />
+            <img src={image} alt="" className="w-full object-cover" style={{ maxHeight: '320px' }} />
           </div>
         )}
 
         {hasContent && (
           <div className={`w-full text-center ${image ? '' : 'mb-2'}`}>
             {title && (
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight tracking-tight">
-                {title}
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight tracking-tight">{title}</h1>
             )}
             {description && (
-              <p className={`text-base text-gray-500 leading-relaxed ${title ? 'mt-3' : ''}`}>
-                {description}
-              </p>
+              <p className={`text-base text-gray-500 leading-relaxed ${title ? 'mt-3' : ''}`}>{description}</p>
             )}
           </div>
         )}
 
-        <button
-          onClick={handleClick}
-          disabled={loading}
-          className={`
-            w-full rounded-xl bg-indigo-600 px-6 py-4
-            text-base font-semibold text-white
-            hover:bg-indigo-700 active:bg-indigo-800
-            disabled:opacity-60 disabled:cursor-not-allowed
-            transition-colors
-            flex items-center justify-center gap-2
-            ${hasContent || image ? 'mt-8' : ''}
-          `}
-        >
-          {loading ? (
-            <>
-              <svg
-                className="animate-spin h-4 w-4 shrink-0"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12" cy="12" r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              {t.buttonLoading}
-            </>
-          ) : (
-            buttonText || t.buttonDefault
-          )}
-        </button>
+        {redirectMethod === 'js_href' && destinationUrl ? (
+          // Native <a> tag — iOS Safari recognises a direct finger-tap on an anchor
+          // as a user-gesture link click, which is required to trigger Universal Links.
+          <a
+            href={destinationUrl}
+            onClick={handleNativeClick}
+            className={`${BTN_CLS} ${marginTop}`}
+          >
+            {buttonText || t.buttonDefault}
+          </a>
+        ) : (
+          <button
+            onClick={handleClick}
+            disabled={loading}
+            className={`${BTN_CLS} ${marginTop}`}
+          >
+            {loading ? <><Spinner />{t.buttonLoading}</> : (buttonText || t.buttonDefault)}
+          </button>
+        )}
       </div>
     </main>
   )

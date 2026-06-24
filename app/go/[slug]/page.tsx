@@ -74,6 +74,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return meta
 }
 
+async function recordClick(id: string): Promise<void> {
+  'use server'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  await fetch(`${supabaseUrl}/rest/v1/rpc/increment_click_count`, {
+    method: 'POST',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ link_id: id }),
+  })
+}
+
 async function resolveDestination(id: string): Promise<string> {
   'use server'
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -118,6 +133,7 @@ export default async function GoPage({ params }: Props) {
   }
 
   const action = resolveDestination.bind(null, link.id)
+  const trackClick = recordClick.bind(null, link.id)
 
   return (
     <LandingClient
@@ -127,7 +143,9 @@ export default async function GoPage({ params }: Props) {
       buttonText={link.button_text ?? 'Continue'}
       redirectMethod={method}
       autoRedirectUrl={autoRedirectUrl}
+      destinationUrl={link.destination_url ?? ''}
       action={action}
+      trackClick={trackClick}
     />
   )
 }
