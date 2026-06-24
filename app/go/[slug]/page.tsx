@@ -5,15 +5,16 @@ import type { RedirectMethod } from '@/lib/supabase'
 
 type Props = { params: Promise<{ slug: string }> }
 
+function supabaseHeaders() {
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  return { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }
+}
+
 async function fetchLink(slug: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/links?slug=eq.${encodeURIComponent(slug)}&limit=1`,
-    {
-      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
-      cache: 'no-store',
-    },
+    `${supabaseUrl}/rest/v1/links?slug=eq.${encodeURIComponent(slug)}&select=*&limit=1`,
+    { headers: supabaseHeaders(), cache: 'no-store' },
   )
   if (!res.ok) return null
   const data = await res.json()
@@ -31,14 +32,9 @@ function isTikTokUrl(url: string): boolean {
 
 async function rpc(fn: string, body: Record<string, unknown>) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {
     method: 'POST',
-    headers: {
-      'apikey': serviceKey,
-      'Authorization': `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: supabaseHeaders(),
     body: JSON.stringify(body),
   })
 }
@@ -64,7 +60,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
   }
 
-  // iOS Safari Smart App Banner — shows "開く" button at top of page for TikTok Lite links
   if (link.destination_url && isTikTokUrl(link.destination_url)) {
     meta.other = {
       'apple-itunes-app': `app-id=1491937174, app-argument=${link.destination_url}`,
@@ -77,14 +72,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function recordClick(id: string): Promise<void> {
   'use server'
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   await fetch(`${supabaseUrl}/rest/v1/rpc/increment_click_count`, {
     method: 'POST',
-    headers: {
-      'apikey': serviceKey,
-      'Authorization': `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: supabaseHeaders(),
     body: JSON.stringify({ link_id: id }),
   })
 }
@@ -92,12 +82,7 @@ async function recordClick(id: string): Promise<void> {
 async function resolveDestination(id: string): Promise<string> {
   'use server'
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  const headers = {
-    'apikey': serviceKey,
-    'Authorization': `Bearer ${serviceKey}`,
-    'Content-Type': 'application/json',
-  }
+  const headers = supabaseHeaders()
   await fetch(`${supabaseUrl}/rest/v1/rpc/increment_click_count`, {
     method: 'POST', headers, body: JSON.stringify({ link_id: id }),
   })
@@ -116,16 +101,13 @@ export default async function GoPage({ params }: Props) {
 
   const method: RedirectMethod = link.redirect_method ?? 'js_replace'
 
-  // Every page load counts as a view
   await rpc('increment_view_count', { link_id: link.id })
 
-  // redirect_302: skip landing page entirely (click = view)
   if (method === 'redirect_302') {
     await rpc('increment_click_count', { link_id: link.id })
     redirect(link.destination_url)
   }
 
-  // meta_refresh: auto-redirect on load (click = view, destination URL exposed to client)
   let autoRedirectUrl = ''
   if (method === 'meta_refresh') {
     await rpc('increment_click_count', { link_id: link.id })
