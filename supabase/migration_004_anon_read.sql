@@ -7,7 +7,8 @@
 -- definition, an anon read policy is safe.
 
 -- Allow anyone to read links (needed for public redirects)
-CREATE POLICY IF NOT EXISTS "links: anon read all"
+DROP POLICY IF EXISTS "links: anon read all" ON links;
+CREATE POLICY "links: anon read all"
   ON links FOR SELECT TO anon
   USING (true);
 
