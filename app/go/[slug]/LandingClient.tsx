@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useLanguage } from '@/lib/language-context'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import type { RedirectMethod } from '@/lib/supabase'
@@ -14,33 +14,6 @@ function buildAndroidIntent(url: string): string {
   } catch {
     return url
   }
-}
-
-function isTikTokDest(url: string): boolean {
-  try {
-    const h = new URL(url).hostname
-    return h.endsWith('tiktok.com') || h.endsWith('tiktokv.com')
-  } catch { return false }
-}
-
-// Build candidate iOS deep-link URIs from a TikTok HTTPS URL.
-// We don't know TikTok Lite's exact registered scheme, so we try several.
-// If any scheme is handled by the app, iOS shows a confirmation dialog
-// ("Open in TikTok Lite?") — that one-tap is all the user needs.
-function buildIOSCandidates(url: string): string[] {
-  try {
-    const u = new URL(url)
-    // path without leading slash
-    const path = u.pathname.replace(/^\//, '') + u.search + u.hash
-    return [
-      // musically:// — TikTok Lite likely inherited Musical.ly's scheme
-      `musically://${path}`,
-      // tiktok:// — generic marketing scheme ByteDance registers
-      `tiktok://${path}`,
-      // snssdk1180 with just path (no hostname, which was the prior mistake)
-      `snssdk1180:///${path}`,
-    ]
-  } catch { return [] }
 }
 
 type Props = {
@@ -71,43 +44,12 @@ export default function LandingClient({
 }: Props) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
-  const triedRef = useRef(false)
-
-  useEffect(() => {
-    setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent))
-  }, [])
 
   useEffect(() => {
     if (redirectMethod === 'meta_refresh' && autoRedirectUrl) {
       window.location.replace(autoRedirectUrl)
     }
   }, [redirectMethod, autoRedirectUrl])
-
-  const showIOSBannerHint = isIOS && redirectMethod === 'js_href' && isTikTokDest(destinationUrl)
-
-  // ── iOS deep-link attempt sequence ──────────────────────────────────
-  // Tries each candidate scheme in turn.  If the app handles the scheme,
-  // the OS shows "Open in TikTok Lite?" — one tap — and document.hidden
-  // becomes true (page loses focus) so we stop iterating.
-  // Falls through to HTTPS if no scheme is recognised by the device.
-  async function tryIOSDeepLink() {
-    if (triedRef.current) return
-    triedRef.current = true
-
-    trackClick().catch(() => {})
-
-    const candidates = buildIOSCandidates(destinationUrl)
-    for (const scheme of candidates) {
-      window.location.href = scheme
-      // Give iOS 1.2 s to respond; if the page is still visible, try next
-      await new Promise<void>(res => setTimeout(res, 1200))
-      if (document.hidden) return  // app opened ✓
-    }
-
-    // No scheme worked — fall back to HTTPS (TikTok web cushion + Smart App Banner)
-    window.location.href = destinationUrl
-  }
 
   function handleNativeClick(e: React.MouseEvent<HTMLAnchorElement>) {
     if (/Android/i.test(navigator.userAgent)) {
@@ -116,13 +58,9 @@ export default function LandingClient({
       window.location.href = buildAndroidIntent(destinationUrl)
       return
     }
-    if (isIOS && isTikTokDest(destinationUrl)) {
-      e.preventDefault()
-      setLoading(true)
-      tryIOSDeepLink().catch(() => { setLoading(false) })
-      return
-    }
-    // Desktop / other: native link navigation, tracking fire-and-forget
+    // iOS / desktop: let the native <a> tap proceed.
+    // On iOS, if the destination domain is in the app's AASA, Universal Links
+    // fires automatically — no e.preventDefault() needed (that would break it).
     trackClick().catch(() => {})
   }
 
@@ -162,16 +100,6 @@ export default function LandingClient({
 
       <div className="w-full max-w-sm flex flex-col items-center">
 
-        {/* iOS hint — shown above content so the eye travels up to the Smart App Banner */}
-        {showIOSBannerHint && (
-          <div className="w-full mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5 text-center">
-            <p className="text-sm font-bold text-indigo-700">↑ 上の「開く」をタップ</p>
-            <p className="text-xs text-indigo-500 mt-0.5 leading-relaxed">
-              Safari 上部のバナーから TikTok Lite が1タップで起動します
-            </p>
-          </div>
-        )}
-
         {image && (
           <div className="w-full mb-8 rounded-2xl overflow-hidden shadow-sm bg-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -190,21 +118,9 @@ export default function LandingClient({
           <a
             href={destinationUrl}
             onClick={handleNativeClick}
-            className={`
-              w-full rounded-xl px-6 py-4 text-base font-semibold text-center
-              transition-colors flex items-center justify-center gap-2
-              ${showIOSBannerHint
-                ? 'border border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'}
-              ${marginTop}
-            `}
+            className={`w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-center text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors flex items-center justify-center gap-2 ${marginTop}`}
           >
-            {loading
-              ? <><Spinner />{t.buttonLoading}</>
-              : showIOSBannerHint
-                ? 'アプリで開く（スキームを試す）'
-                : (buttonText || t.buttonDefault)
-            }
+            {loading ? <><Spinner />{t.buttonLoading}</> : (buttonText || t.buttonDefault)}
           </a>
         ) : (
           <button
