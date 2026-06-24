@@ -5,16 +5,6 @@ import { useLanguage } from '@/lib/language-context'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import type { RedirectMethod } from '@/lib/supabase'
 
-function buildAndroidIntent(url: string): string {
-  try {
-    const u = new URL(url)
-    const hostPath = u.host + u.pathname + u.search + u.hash
-    const fallback = encodeURIComponent(url)
-    return `intent://${hostPath}#Intent;scheme=${u.protocol.replace(':', '')};package=com.zhiliaoapp.musically.lite;S.browser_fallback_url=${fallback};end`
-  } catch {
-    return url
-  }
-}
 
 type Props = {
   title: string
@@ -51,16 +41,10 @@ export default function LandingClient({
     }
   }, [redirectMethod, autoRedirectUrl])
 
-  function handleNativeClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    if (/Android/i.test(navigator.userAgent)) {
-      e.preventDefault()
-      trackClick().catch(() => {})
-      window.location.href = buildAndroidIntent(destinationUrl)
-      return
-    }
-    // iOS / desktop: let the native <a> tap proceed.
-    // On iOS, if the destination domain is in the app's AASA, Universal Links
-    // fires automatically — no e.preventDefault() needed (that would break it).
+  function handleNativeClick() {
+    // Let the native <a> tap proceed on all platforms.
+    // iOS: Universal Links opens TikTok Lite if lite.tiktok.com is in the app's AASA.
+    // Android: App Links opens TikTok Lite if lite.tiktok.com is in the app's assetlinks.json.
     trackClick().catch(() => {})
   }
 
@@ -79,9 +63,6 @@ export default function LandingClient({
           a.href = url; document.body.appendChild(a); a.click(); document.body.removeChild(a)
           break
         }
-        case 'android_intent':
-          window.location.href = buildAndroidIntent(url)
-          break
         case 'js_replace':
         default:
           window.location.replace(url)
